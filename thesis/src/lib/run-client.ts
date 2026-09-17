@@ -16,7 +16,13 @@ export interface RunState {
 
 export const IDLE_RUN: RunState = {
   running: false,
-  stages: { resolve: 'pending', decompose: 'pending', breakers: 'pending', evaluate: 'pending' },
+  stages: {
+    resolve: 'pending',
+    decompose: 'pending',
+    challenge: 'pending',
+    breakers: 'pending',
+    evaluate: 'pending',
+  },
 };
 
 /** Parse an SSE byte stream into events, tolerating frames split across chunks. */

@@ -1,6 +1,7 @@
 import { getDataSource } from '../data/index';
 import type { Instrument } from '../data/types';
 import { getRateLimiter, LlmError, QuotaExceededError } from '../llm/index';
+import { challenge, merge, type ChallengeResult } from './challenge';
 import { decompose } from './decomposer/index';
 import type { Decomposition, ThesisInput } from './decomposer/types';
 import { generateBreakers } from './breakers/index';
@@ -20,7 +21,7 @@ import { evaluateLive, type Evaluation } from './breakers/evaluate';
  * could consume the same events.
  */
 
-export type RunStageId = 'resolve' | 'decompose' | 'breakers' | 'evaluate';
+export type RunStageId = 'resolve' | 'decompose' | 'challenge' | 'breakers' | 'evaluate';
 
 export type RunEvent =
   | {
@@ -33,6 +34,7 @@ export type RunEvent =
     }
   | { type: 'instrument'; instrument: Instrument }
   | { type: 'decomposition'; decomposition: Decomposition }
+  | { type: 'challenge'; challenge: ChallengeResult }
   | { type: 'breakers'; breakerSet: BreakerSet }
   | { type: 'evaluations'; evaluations: Evaluation[] }
   | { type: 'done'; modelCalls: number; latencyMs: number; models: string[] }
@@ -107,6 +109,35 @@ export async function* runAttack(input: ThesisInput): AsyncGenerator<RunEvent> {
   models.add(decomposition.meta.model);
   yield { type: 'decomposition', decomposition };
   yield { type: 'stage', id: 'decompose', state: 'done', ms: since() };
+
+  // ---- challenge ----------------------------------------------------------
+  /*
+    A second reader, on a different model family, looking for what the first
+    pass missed. It runs BEFORE breakers on purpose: anything it adds is folded
+    into the assumption list, so the generator writes tripwires for it like any
+    other. An addition nothing watches would be decoration.
+
+    This stage cannot fail the run. `challenge` never throws, and a result
+    carrying `skipped` means the user still gets the full decomposition, every
+    breaker and every evaluation. The sponsor gateway's quota is not published
+    and its availability is not ours, so the analysis must not depend on it.
+  */
+  yield { type: 'stage', id: 'challenge', state: 'running' };
+  const challenged = await challenge(decomposition);
+  if (challenged.model) models.add(challenged.model);
+  if (challenged.added.length > 0) {
+    decomposition = merge(decomposition, challenged);
+    // Re-emit so the UI replaces the tree rather than showing a stale one.
+    yield { type: 'decomposition', decomposition };
+  }
+  yield { type: 'challenge', challenge: challenged };
+  yield {
+    type: 'stage',
+    id: 'challenge',
+    state: 'done',
+    ms: since(),
+    ...(challenged.skipped ? { detail: `skipped: ${challenged.skipped}` } : {}),
+  };
 
   // ---- breakers -----------------------------------------------------------
   yield { type: 'stage', id: 'breakers', state: 'running' };

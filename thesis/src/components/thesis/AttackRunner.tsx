@@ -29,11 +29,12 @@ import { cn } from '@/lib/utils';
  * Never tune this against local timings.
  */
 
-const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'breakers', 'evaluate'];
+const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'challenge', 'breakers', 'evaluate'];
 
 const STAGE_LABEL: Record<RunStageId, string> = {
   resolve: 'resolve',
   decompose: 'decompose',
+  challenge: 'second opinion',
   breakers: 'tripwires',
   evaluate: 'evaluate',
 };
@@ -43,6 +44,8 @@ const STAGE_NARRATION: Record<RunStageId, string> = {
   resolve: 'Finding the company, the token it trades as, and its filing history…',
   decompose:
     'Reading your thesis for everything it quietly assumes, including the parts you did not say out loud.',
+  challenge:
+    'Handing the list to a second model from a different family, to look for the assumptions the first one missed.',
   breakers:
     'Working out which of those assumptions can actually be checked, and what number would prove each one wrong.',
   evaluate: 'Reading the latest filings and live prices to see where each one stands right now.',
@@ -68,7 +71,13 @@ interface RunState {
 
 const IDLE: RunState = {
   running: false,
-  stages: { resolve: 'pending', decompose: 'pending', breakers: 'pending', evaluate: 'pending' },
+  stages: {
+    resolve: 'pending',
+    decompose: 'pending',
+    challenge: 'pending',
+    breakers: 'pending',
+    evaluate: 'pending',
+  },
   ticker: '',
 };
 
