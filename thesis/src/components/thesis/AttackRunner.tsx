@@ -66,9 +66,17 @@ const ERROR_HEADING: Record<ErrorKind, string> = {
   unknown: 'The run stopped',
 };
 
+/*
+  ⚠ This duplicates RunState, IDLE, readEvents and the event reducer from
+  lib/run-client.ts, which the desk uses. The two were written in parallel and
+  never merged. Keep them in step: a fix applied to one and not the other
+  survives in whichever screen nobody happened to open.
+*/
 interface RunState {
   running: boolean;
   stages: Record<RunStageId, BlockStage['state']>;
+  /** What a stage said about itself. See the same field in lib/run-client.ts. */
+  stageDetail: Partial<Record<RunStageId, string>>;
   ticker: string;
   decomposition?: Decomposition;
   breakerSet?: BreakerSet;
@@ -79,6 +87,7 @@ interface RunState {
 
 const IDLE: RunState = {
   running: false,
+  stageDetail: {},
   stages: {
     resolve: 'pending',
     decompose: 'pending',
@@ -156,7 +165,13 @@ export function AttackRunner() {
         setState((s) => {
           switch (event.type) {
             case 'stage':
-              return { ...s, stages: { ...s.stages, [event.id]: event.state } };
+              return {
+                ...s,
+                stages: { ...s.stages, [event.id]: event.state },
+                ...(event.detail
+                  ? { stageDetail: { ...s.stageDetail, [event.id]: event.detail } }
+                  : {}),
+              };
             case 'decomposition':
               return { ...s, decomposition: event.decomposition };
             case 'breakers':
@@ -197,7 +212,21 @@ export function AttackRunner() {
     label: STAGE_LABEL[id],
     state: state.stages[id],
     narration: STAGE_NARRATION[id],
+    ...(state.stageDetail[id] ? { detail: state.stageDetail[id] } : {}),
   }));
+
+  /*
+    The stage row is swapped for the footer the moment a run completes, so a
+    skipped step would confess while nobody is reading and go quiet once
+    somebody is. The note carries it into the footer instead.
+
+    Deliberately plain rather than the raw reason. "Could not reach
+    bear/qwen3.8-max at https://..." is a line for a log; what a reader needs
+    to know is that one fewer model looked at this than usually does.
+  */
+  const note = state.stageDetail.challenge
+    ? 'second opinion did not run, so this is one model reading'
+    : undefined;
 
   const started = state.running || Boolean(state.decomposition) || Boolean(state.error);
   const breakersPending = state.stages.breakers !== 'done' && state.stages.breakers !== 'failed';
@@ -255,7 +284,7 @@ export function AttackRunner() {
         <AnalysisBlock
           kind="thesis-attacked"
           subject={state.ticker}
-          {...(state.meta ? { meta: state.meta } : { stages })}
+          {...(state.meta ? { meta: { ...state.meta, ...(note ? { note } : {}) } } : { stages })}
         >
           {state.error ? (
             <div className="mb-6">

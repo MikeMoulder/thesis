@@ -7,6 +7,16 @@ import type { ErrorKind, RunEvent, RunStageId } from '@/engine/run';
 export interface RunState {
   running: boolean;
   stages: Record<RunStageId, 'pending' | 'running' | 'done' | 'failed'>;
+  /**
+   * What a stage said about itself, when it said anything.
+   *
+   * Carried separately rather than folded into `stages` so that every existing
+   * reader of a stage state keeps working unchanged. Today only the second
+   * opinion sets it, and it sets it to say it did not run. A stage that gave up
+   * and renders as a tick beside four that succeeded is the app telling a
+   * comfortable lie about its own work.
+   */
+  stageDetail: Partial<Record<RunStageId, string>>;
   decomposition?: Decomposition;
   breakerSet?: BreakerSet;
   evaluations?: Evaluation[];
@@ -16,6 +26,7 @@ export interface RunState {
 
 export const IDLE_RUN: RunState = {
   running: false,
+  stageDetail: {},
   stages: {
     resolve: 'pending',
     decompose: 'pending',
@@ -58,7 +69,13 @@ export async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenera
 export function applyEvent(state: RunState, event: RunEvent): RunState {
   switch (event.type) {
     case 'stage':
-      return { ...state, stages: { ...state.stages, [event.id]: event.state } };
+      return {
+        ...state,
+        stages: { ...state.stages, [event.id]: event.state },
+        ...(event.detail
+          ? { stageDetail: { ...state.stageDetail, [event.id]: event.detail } }
+          : {}),
+      };
     case 'decomposition':
       return { ...state, decomposition: event.decomposition };
     case 'breakers':

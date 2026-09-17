@@ -109,12 +109,26 @@ function loadSessions(): Session[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Session[];
     if (!Array.isArray(parsed)) return [];
-    // A run cannot still be in flight across a page load; anything that says so
-    // was interrupted, and showing a permanent spinner would be a lie.
+    /*
+      Two normalisations, and both exist because this data was written by an
+      OLDER copy of this app and is trusted by a newer one.
+
+      A run cannot still be in flight across a page load; anything that says so
+      was interrupted, and showing a permanent spinner would be a lie.
+
+      stageDetail did not exist before 17 Sep 2026, so a session saved by any
+      build before it rehydrates without the field and every read of it throws.
+      Filling it here rather than guarding at each read site keeps the rest of
+      the component able to assume the shape its own type promises. Anything
+      persisted and read back across a deploy needs this, and it is the reason
+      the key carries a version.
+    */
     return parsed.map((session) => ({
       ...session,
       turns: session.turns.map((turn) =>
-        turn.kind === 'run' ? { ...turn, state: { ...turn.state, running: false } } : turn,
+        turn.kind === 'run'
+          ? { ...turn, state: { ...turn.state, running: false, stageDetail: turn.state.stageDetail ?? {} } }
+          : turn,
       ),
     }));
   } catch {
@@ -915,7 +929,21 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
     label: STAGE_LABEL[id],
     state: state.stages[id],
     narration: STAGE_NARRATION[id],
+    ...(state.stageDetail[id] ? { detail: state.stageDetail[id] } : {}),
   }));
+
+  /*
+    The stage row is swapped for the footer the moment a run completes, so a
+    skipped step would confess while nobody is reading and go quiet once
+    somebody is. The note carries it into the footer instead.
+
+    Deliberately plain rather than the raw reason. "Could not reach
+    bear/qwen3.8-max at https://..." is a line for a log; what a reader needs
+    to know is that one fewer model looked at this than usually does.
+  */
+  const note = state.stageDetail.challenge
+    ? 'second opinion did not run, so this is one model reading'
+    : undefined;
   const breakersPending = state.stages.breakers !== 'done' && state.stages.breakers !== 'failed';
   const settled = !state.running;
   const thresholdBreakers = state.breakerSet?.breakers.filter((b) => b.kind === 'threshold') ?? [];
@@ -924,7 +952,7 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
     <AnalysisBlock
       kind="thesis-attacked"
       subject={ticker}
-      {...(state.meta ? { meta: state.meta } : { stages })}
+      {...(state.meta ? { meta: { ...state.meta, ...(note ? { note } : {}) } } : { stages })}
     >
       {state.error ? (
         <p className="mb-5 max-w-prose text-base text-trust">{state.error.message}</p>

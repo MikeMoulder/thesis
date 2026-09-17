@@ -1,4 +1,4 @@
-import { Check, LoaderCircle } from 'lucide-react';
+import { Check, LoaderCircle, Minus } from 'lucide-react';
 
 import { TickerMark } from '@/components/thesis/TickerMark';
 
@@ -49,14 +49,35 @@ export interface BlockStage {
    * how the thing works.
    */
   narration?: string;
+  /**
+   * Set when a stage finished without doing its job.
+   *
+   * The second opinion is optional and runs against a gateway that is not
+   * ours, so it can complete having produced nothing. Rendering that as a tick
+   * next to four stages that succeeded is the interface making a claim the run
+   * did not earn, so a stage carrying this gets a dash and the word skipped
+   * instead.
+   */
+  detail?: string;
 }
 
 export interface BlockMeta {
   /** Number of model calls the run actually made. */
   modelCalls: number;
   latencyMs: number;
-  /** Models used, e.g. ["gemini-3.5-flash-lite", "qwen3.8-max"]. */
+  /**
+   * Models that ANSWERED. A model that was asked and timed out does not belong
+   * here; see the note on ChallengeResult.model.
+   */
   models?: string[];
+  /**
+   * One plain line about what did not run, kept after the stages disappear.
+   *
+   * The stage row is replaced by this footer the moment the run completes, so
+   * without this the only admission that a step was skipped vanishes at exactly
+   * the point the reader starts trusting the result.
+   */
+  note?: string;
   /** ISO timestamp of completion. */
   at?: string;
 }
@@ -77,7 +98,9 @@ function Stages({ stages }: { stages: BlockStage[] }) {
     <ol className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-3">
       {stages.map((stage) => (
         <li key={stage.id} className="flex items-center gap-1.5">
-          {stage.state === 'done' ? (
+          {stage.state === 'done' && stage.detail ? (
+            <Minus size={12} strokeWidth={2} aria-hidden className="text-faint" />
+          ) : stage.state === 'done' ? (
             <Check size={12} strokeWidth={2} aria-hidden className="text-muted" />
           ) : stage.state === 'running' ? (
             <LoaderCircle
@@ -95,7 +118,7 @@ function Stages({ stages }: { stages: BlockStage[] }) {
             className={cn(
               'text-meta uppercase tracking-[0.12em]',
               stage.state === 'running' && 'animate-breathe text-text',
-              stage.state === 'done' && 'text-muted',
+              stage.state === 'done' && (stage.detail ? 'text-faint line-through' : 'text-muted'),
               stage.state === 'failed' && 'text-fired',
               stage.state === 'pending' && 'text-faint',
             )}
@@ -182,6 +205,14 @@ export function AnalysisBlock({
               <span data-figure className="text-meta text-faint">
                 {meta.models.join(' + ')}
               </span>
+            </>
+          ) : null}
+          {meta.note ? (
+            <>
+              <span aria-hidden className="text-line-strong">
+                ·
+              </span>
+              <span className="text-meta text-faint">{meta.note}</span>
             </>
           ) : null}
           {/*
