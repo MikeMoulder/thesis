@@ -104,6 +104,37 @@ export interface Candle {
 
 export type Interval = '1m' | '5m' | '15m' | '30m' | '1H' | '4H' | '1D' | '1W';
 
+/** One resting order level: the price, and the size available at it. */
+export interface BookLevel {
+  price: number;
+  /** Size in base units, i.e. tokens, not currency. */
+  size: number;
+}
+
+/**
+ * A snapshot of resting orders on both sides of the book.
+ *
+ * This is the only source that can answer whether a position can actually be
+ * closed, and it disagrees with every other source we hold. A ticker reports a
+ * last price and a 24 hour volume for instruments that have NO resting orders
+ * at all: rNFLX showed 76.92 and 12.4M of volume with zero bids and zero asks
+ * on 17 Sep 2026. Price and volume describe what already happened. Only the
+ * book describes what could happen next.
+ *
+ * Both sides are sorted best-first: `asks` ascending from the lowest offer,
+ * `bids` descending from the highest bid. An empty side is a real answer, not
+ * a failure, so it is represented as an empty array rather than an error.
+ */
+export interface OrderBook {
+  symbol: string;
+  /** Lowest offers first. Empty when nobody is offering. */
+  asks: BookLevel[];
+  /** Highest bids first. Empty when nobody is bidding. */
+  bids: BookLevel[];
+  /** Epoch milliseconds the snapshot was taken. */
+  ts: number;
+}
+
 // ---------------------------------------------------------------------------
 // Fundamentals
 // ---------------------------------------------------------------------------

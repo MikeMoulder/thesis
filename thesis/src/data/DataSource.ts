@@ -5,6 +5,7 @@ import type {
   Instrument,
   Interval,
   NewsItem,
+  OrderBook,
   Quote,
   Sourced,
 } from './types';
@@ -58,6 +59,17 @@ export interface DataSource {
     instrument: Instrument,
     period: HistoryPeriod,
   ): Promise<Sourced<Candle[]>>;
+
+  /**
+   * Resting orders on both sides of the tradable instrument.
+   *
+   * Separate from `getQuote` because the two answer different questions and
+   * routinely disagree. A quote says what the last trade printed at; the book
+   * says whether anyone will take the other side of the next one. rTokens are
+   * listed far more widely than they are quoted, so a confident price sitting
+   * above an empty book is common rather than exceptional.
+   */
+  getOrderBook(instrument: Instrument, limit?: number): Promise<Sourced<OrderBook>>;
 
   // -- Fundamentals ---------------------------------------------------------
 

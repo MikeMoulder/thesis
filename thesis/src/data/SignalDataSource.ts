@@ -9,6 +9,7 @@ import {
   type Instrument,
   type Interval,
   type NewsItem,
+  type OrderBook,
   type Quote,
   type Sourced,
 } from './types';
@@ -169,6 +170,11 @@ export class SignalDataSource implements DataSource {
   }
   getCandles(_i: Instrument, _iv: Interval, _l?: number): Promise<Sourced<Candle[]>> {
     this.notAvailable('getCandles');
+  }
+  getOrderBook(_i: Instrument, _l?: number): Promise<Sourced<OrderBook>> {
+    // No signal tool exposes resting depth even when the backend is healthy.
+    // Order book data is Bitget-native and has no equivalent here.
+    this.notAvailable('getOrderBook');
   }
   getUnderlyingHistory(_i: Instrument, _p: HistoryPeriod): Promise<Sourced<Candle[]>> {
     this.notAvailable('getUnderlyingHistory');

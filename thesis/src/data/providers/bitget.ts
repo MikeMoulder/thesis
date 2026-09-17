@@ -11,9 +11,11 @@ import {
   NoDataError,
   ProviderError,
   sourced,
+  type BookLevel,
   type Candle,
   type Instrument,
   type Interval,
+  type OrderBook,
   type Quote,
   type Sourced,
 } from '../types';
@@ -34,6 +36,7 @@ import {
  *   getInstruments        the rToken catalog
  *   getTickers            live 7x24 quote
  *   getKlineCandlestick   OHLCV
+ *   getOrderbook          resting depth, i.e. whether an exit exists at all
  */
 
 let client: BitgetRestClient | null = null;
@@ -176,6 +179,60 @@ export async function getCandles(
     asOf: candles.length ? new Date(candles[candles.length - 1]!.ts).toISOString() : undefined,
     confidence: 'high',
   });
+}
+
+/**
+ * Resting orders on both sides, best-first.
+ *
+ * WHY THIS EXISTS, and why the empty case is the point:
+ *
+ * Every other source we hold describes the past. A ticker gives a last price
+ * and a 24 hour volume; candles give what already traded. Neither can tell you
+ * whether anyone will take the other side of your exit right now, and for a
+ * tokenized equity that gap is not academic. Measured 17 Sep 2026:
+ *
+ *   RNVDAUSDT   217.74   47.1M volume   5 asks / 5 bids
+ *   RNFLXUSDT    76.92   12.4M volume   0 asks / 0 bids
+ *   RDISUSDT    107.32    3.9M volume   0 asks / 0 bids
+ *
+ * Netflix quotes a confident price against an empty book. A stop placed there
+ * has nothing to fill against. Of 28 sampled rTokens, 14 had no book at all.
+ *
+ * So an empty side returns an empty array, never an error: "nobody is bidding"
+ * is the most important answer this function gives, and throwing would turn a
+ * finding into a failure.
+ */
+export async function getOrderBook(
+  instrument: Instrument,
+  limit = 150,
+): Promise<Sourced<OrderBook>> {
+  const symbol = requireRToken(instrument);
+  // Bitget returns `a`/`b` as positional [price, size] pairs, asks then bids.
+  const raw = await call<{ a?: Array<[number, number]>; b?: Array<[number, number]>; ts?: string }>(
+    'getOrderbook',
+    { category: 'SPOT', symbol, limit: Math.min(limit, 200) },
+  );
+
+  const level = ([price, size]: [number, number]): BookLevel => ({
+    price: Number(price),
+    size: Number(size),
+  });
+  // Sort rather than trust the order: the metrics walk these arrays and a
+  // mis-ordered book silently produces a plausible, wrong slippage number.
+  const asks = (raw.a ?? []).map(level).sort((x, y) => x.price - y.price);
+  const bids = (raw.b ?? []).map(level).sort((x, y) => y.price - x.price);
+  const ts = raw.ts ? Number(raw.ts) : Date.now();
+
+  return sourced(
+    { symbol, asks, bids, ts },
+    {
+      status: 'sourced',
+      source: `Bitget spot order book ${symbol} (Agent Hub SDK)`,
+      url: `${BITGET_BASE}/api/v3/market/orderbook?category=SPOT&symbol=${symbol}&limit=${limit}`,
+      asOf: new Date(ts).toISOString(),
+      confidence: 'high',
+    },
+  );
 }
 
 export async function ping(): Promise<{ ok: boolean; detail?: string; latencyMs: number }> {

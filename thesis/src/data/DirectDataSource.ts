@@ -11,6 +11,7 @@ import {
   type Instrument,
   type Interval,
   type NewsItem,
+  type OrderBook,
   type Quote,
   type Sourced,
 } from './types';
@@ -60,6 +61,10 @@ export class DirectDataSource implements DataSource {
     limit?: number,
   ): Promise<Sourced<Candle[]>> {
     return bitget.getCandles(instrument, interval, limit);
+  }
+
+  getOrderBook(instrument: Instrument, limit?: number): Promise<Sourced<OrderBook>> {
+    return bitget.getOrderBook(instrument, limit);
   }
 
   getUnderlyingHistory(
