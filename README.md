@@ -2,7 +2,7 @@
 
 **Write down why you are buying something. THESIS takes that sentence apart, finds every belief hiding inside it, puts an exact number under each one, and then watches those numbers around the clock so you learn you were wrong from the data instead of from the price.**
 
-[Open the live desk](https://thesis-mikes-projects-7ac9bd1b.vercel.app) · [A thesis under observation](https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-mikes-projects-7ac9bd1b.vercel.app/activity) · [Source health, live](https://thesis-mikes-projects-7ac9bd1b.vercel.app/api/diag)
+[Open the live desk](https://thesis-stocks.vercel.app) · [A thesis under observation](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-stocks.vercel.app/activity) · [Source health, live](https://thesis-stocks.vercel.app/api/diag)
 
 Built for the **Bitget AI Base Camp Hackathon S2**, on the **Bitget Agent Hub SDK**, **Qwen** through Bitget's hackathon gateway, and the **bitget-signal Skills**.
 
@@ -51,7 +51,7 @@ Steps 4 through 7 are the part almost nothing else does. Plenty of tools will su
 
 ## See it working, with numbers that are true right now
 
-This is a real thesis, live on the deployment as you read this. Open it at [/thesis/tsla-c5qqql](https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql).
+This is a real thesis, live on the deployment as you read this. Open it at [/thesis/tsla-c5qqql](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql).
 
 A person typed a paragraph about Tesla. THESIS found **six things that have to be true**, and one of them the author never wrote down. Five got a number attached. Here is where they stand:
 
@@ -165,7 +165,7 @@ That is a genuine load-bearing belief the first model never wrote down, and it n
 
 ### bitget-signal Skills: used, and honest about the rest
 
-We connected to the Skills over MCP and we test all five of them live, on every page load of [`/api/diag`](https://thesis-mikes-projects-7ac9bd1b.vercel.app/api/diag). Here is what actually answers, measured repeatedly on 16 and 17 Sep 2026:
+We connected to the Skills over MCP and we test all five of them live, on every page load of [`/api/diag`](https://thesis-stocks.vercel.app/api/diag). Here is what actually answers, measured repeatedly on 16 and 17 Sep 2026:
 
 ```text
 technical_analysis     works, real values      474ms
@@ -235,7 +235,7 @@ revenue growth 25.52% closing on 25.00%
 SEC 10-Q 0001318605-26-000091
 
 Checked 7 Jul 14:15 UTC.
-https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql
+https://thesis-stocks.vercel.app/thesis/tsla-c5qqql
 ```
 
 Read that again and notice what is in it. Not "an assumption broke". The sentence you wrote, the exact number, the exact line it crossed, **and the filing it came from**. You can act on that at 3am without opening a laptop, and you can check it later without trusting us.

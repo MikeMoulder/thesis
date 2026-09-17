@@ -33,7 +33,7 @@
 import '../env';
 
 /** Where production lives, when nothing overrides it. */
-const DEFAULT_URL = 'https://thesis-mikes-projects-7ac9bd1b.vercel.app';
+const DEFAULT_URL = 'https://thesis-stocks.vercel.app';
 
 /** Treat a gap this many times the normal spacing as a skipped tick. */
 const MISS_FACTOR = 1.5;

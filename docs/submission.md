@@ -2,7 +2,7 @@
 
 Copy and paste. Every claim here matches what the code does on 17 September 2026, checked against the running deployment rather than against intent.
 
-**A warning before you paste anything.** `thesis/.env.example` still contains a comment describing a six-call pipeline with separate fundamentals, market, news, bull and judge model seats. **That pipeline does not run.** Those seats are declared in `src/llm/index.ts` and never called. A real run makes four or five model calls, not six, and uses three seats. Do not let the old text near this form.
+**Why the model call numbers below say four or five and not six.** An earlier version of this project declared eight model seats, five of which (fundamentals, market, news, bull and judge) were configured, documented, and never once called. They were deleted on 18 Sep, along with the quota text in `.env.example` that described them. Three seats run now: the decomposer, the Qwen second opinion, and a follow-up seat. If you find any older note claiming a six-call pipeline, it predates that cleanup and is wrong.
 
 ---
 
@@ -185,10 +185,10 @@ One setting took it from never answering to about four seconds. Re-measured ten 
 
 | What | Link |
 |---|---|
-| Live demo | https://thesis-mikes-projects-7ac9bd1b.vercel.app |
-| A thesis under observation, with full history | https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql |
-| Every check ever run | https://thesis-mikes-projects-7ac9bd1b.vercel.app/activity |
-| Live source health, all five Bitget Skills | https://thesis-mikes-projects-7ac9bd1b.vercel.app/api/diag |
+| Live demo | https://thesis-stocks.vercel.app |
+| A thesis under observation, with full history | https://thesis-stocks.vercel.app/thesis/tsla-c5qqql |
+| Every check ever run | https://thesis-stocks.vercel.app/activity |
+| Live source health, all five Bitget Skills | https://thesis-stocks.vercel.app/api/diag |
 | Source code | https://github.com/MikeMoulder/thesis |
 | Complete research walkthrough | https://github.com/MikeMoulder/thesis/blob/main/docs/walkthrough.md |
 | X post | **not yet posted. Required. The submission is invalid without it.** |

@@ -225,7 +225,7 @@ revenue growth 25.52% closing on 25.00%
 SEC 10-Q 0001318605-26-000091
 
 Checked 7 Jul 14:15 UTC.
-https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql
+https://thesis-stocks.vercel.app/thesis/tsla-c5qqql
 ```
 
 The sentence they wrote, the number, the line it crossed, and the filing behind it. One message per thesis, only when something genuinely changed.
@@ -287,10 +287,10 @@ npm run cron:check                is the 15 minute loop actually running
 
 Or skip all of it and open the live deployment:
 
-- [The desk](https://thesis-mikes-projects-7ac9bd1b.vercel.app)
-- [A thesis under observation, with its full history](https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql)
-- [Every check ever run](https://thesis-mikes-projects-7ac9bd1b.vercel.app/activity)
-- [Live source health, including all five Bitget Skills](https://thesis-mikes-projects-7ac9bd1b.vercel.app/api/diag)
+- [The desk](https://thesis-stocks.vercel.app)
+- [A thesis under observation, with its full history](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql)
+- [Every check ever run](https://thesis-stocks.vercel.app/activity)
+- [Live source health, including all five Bitget Skills](https://thesis-stocks.vercel.app/api/diag)
 
 ---
 
