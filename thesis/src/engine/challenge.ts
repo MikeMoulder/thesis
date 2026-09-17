@@ -181,7 +181,39 @@ export async function challenge(d: Decomposition): Promise<ChallengeResult> {
         Nothing is lost by dropping it. `extractJson` already tolerates fences
         and stray prose, because every other seat has always relied on it.
       */
-      { temperature: 0.4, json: false, maxTokens: 700, timeoutMs: CHALLENGE_TIMEOUT_MS },
+      /*
+        enable_thinking: false is the single line that makes this seat work.
+
+        qwen3.8-max is a REASONING model. It generates hidden reasoning tokens
+        before it writes any content, and every successful response carries
+        them in a reasoning_content field. On a real analytical prompt that
+        hidden pass consumes the whole budget and the request simply never
+        returns. Measured against the gateway, holding everything else equal:
+
+          trivial prompt, "reply {}"            200 in about 3s     4 of 4
+          real prompt, max_tokens 700           TIMEOUT at 45s      3 of 3
+          real prompt, max_tokens 2000          200 in 41.9s        1 of 1
+          real prompt, stream: true             200 in 44.2s        1 of 1
+          real prompt, enable_thinking: false   200 in  5.2s        1 of 1
+
+        So it was never a network fault and never Bitget being down: the same
+        gateway answers a trivial prompt in three seconds from the same
+        machine that times out on a real one. Raising max_tokens gets an
+        answer back inside the timeout by three seconds, which is not a margin
+        worth shipping. Turning the hidden pass off removes the problem
+        instead of racing it.
+
+        Nothing of value is lost. The output contract above is two terse
+        assumptions, which is extraction rather than deliberation, and the
+        reasoning_content was never read by anything here.
+      */
+      {
+        temperature: 0.4,
+        json: false,
+        maxTokens: 700,
+        timeoutMs: CHALLENGE_TIMEOUT_MS,
+        extra: { enable_thinking: false },
+      },
     );
 
     const parsed = extractJson(result.text) as { assumptions?: unknown };
