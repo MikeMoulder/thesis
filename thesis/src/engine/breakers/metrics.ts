@@ -32,12 +32,19 @@ export function isFundamental(metric: Metric): metric is FundamentalMetric {
 
 /** Direct XBRL concepts. Ratios go through getDerivedMetric instead. */
 const CONCEPT_FOR: Partial<Record<FundamentalMetric, string>> = {
-  revenue: 'Revenues',
-  grossProfit: 'GrossProfit',
-  operatingIncome: 'OperatingIncomeLoss',
-  netIncome: 'NetIncomeLoss',
-  eps: 'EarningsPerShareDiluted',
-  researchAndDevelopment: 'ResearchAndDevelopmentExpense',
+  // Metric ALIASES, not raw XBRL tags. The data layer resolves each one across
+  // every tag the figure can arrive under and merges the results, so a filer
+  // that changed tags mid-history still produces one continuous series.
+  //
+  // These were raw tags naming exactly one concept each. For AMD that meant
+  // `Revenues`, a node it abandoned in 2018 which still holds two quarters from
+  // 2017, and those were being read as the current figure.
+  revenue: 'revenue',
+  grossProfit: 'grossProfit',
+  operatingIncome: 'operatingIncome',
+  netIncome: 'netIncome',
+  eps: 'eps',
+  researchAndDevelopment: 'researchAndDevelopment',
 };
 
 const DERIVED_FOR = {
@@ -52,6 +59,9 @@ const DERIVED_FOR = {
 // ---------------------------------------------------------------------------
 
 /** Calendar days of history each price metric needs. */
+/** Extra days a series must carry beyond the window it has to look back over. */
+export const LOOKBACK_MARGIN_DAYS = 7;
+
 export const WINDOW_DAYS: Record<PriceMetric, number> = {
   price: 1,
   return30d: 30,
@@ -90,8 +100,20 @@ export async function getPriceSeries(
       const last = c[c.length - 1];
       if (first && last) {
         const span = (last.ts - first.ts) / 86_400_000;
-        // Small tolerance: a 90-day window against 89 days of bars is fine.
-        if (span >= daysNeeded * 0.95) {
+        /*
+          The span must EXCEED the window, not merely approach it.
+
+          This read `span >= daysNeeded * 0.95` and called a 90 day window
+          against 89 days of bars "fine". It is not. A lookback needs a bar at
+          or BEFORE the target date, and with 89 days of history the oldest bar
+          falls three days on the wrong side of a 90 day target, so the
+          computation returns null and the metric reads as unmeasurable.
+
+          rTokens trade 7x24, so 90 bars really is 89 calendar days, and
+          return90d was failing this way for EVERY ticker. The margin covers
+          gaps and listing-day partials.
+        */
+        if (span >= daysNeeded + LOOKBACK_MARGIN_DAYS) {
           return { candles: c, from: 'rToken', provenance: rt.provenance };
         }
       }
@@ -237,8 +259,20 @@ export async function readMetric(
     };
   }
 
-  const series = await getPriceSeries(ds, instrument, WINDOW_DAYS[priceMetric]);
-  const value = computePriceMetric(series.candles, priceMetric);
+  let series = await getPriceSeries(ds, instrument, WINDOW_DAYS[priceMetric]);
+  let value = computePriceMetric(series.candles, priceMetric);
+
+  /*
+    A series can pass the span check and still not answer the question, because
+    span is a proxy for "has a bar old enough" and a gap can defeat it. Rather
+    than report a metric as unmeasurable when a longer series is one call away,
+    ask the underlying before giving up.
+  */
+  if (value === null && series.from === 'rToken') {
+    series = await getPriceSeries(ds, { ...instrument, rTokenSymbol: undefined }, WINDOW_DAYS[priceMetric]);
+    value = computePriceMetric(series.candles, priceMetric);
+  }
+
   if (value === null) {
     throw new NoDataError(
       `Not enough price history to compute ${metric} (${series.candles.length} bars from ${series.from})`,

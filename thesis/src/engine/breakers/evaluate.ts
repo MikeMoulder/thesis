@@ -450,10 +450,17 @@ export function knowableFrom(inputs: Array<{ firstFiled: string }>): string | nu
 }
 
 const CONCEPTS: Partial<Record<Metric, string>> = {
-  revenue: 'Revenues',
-  grossProfit: 'GrossProfit',
-  operatingIncome: 'OperatingIncomeLoss',
-  netIncome: 'NetIncomeLoss',
-  eps: 'EarningsPerShareDiluted',
-  researchAndDevelopment: 'ResearchAndDevelopmentExpense',
+  // Metric ALIASES, not raw XBRL tags. The data layer resolves each one across
+  // every tag the figure can arrive under and merges the results, so a filer
+  // that changed tags mid-history still produces one continuous series.
+  //
+  // These were raw tags naming exactly one concept each. For AMD that meant
+  // `Revenues`, a node it abandoned in 2018 which still holds two quarters from
+  // 2017, and those were being read as the current figure.
+  revenue: 'revenue',
+  grossProfit: 'grossProfit',
+  operatingIncome: 'operatingIncome',
+  netIncome: 'netIncome',
+  eps: 'eps',
+  researchAndDevelopment: 'researchAndDevelopment',
 };
