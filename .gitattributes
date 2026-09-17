@@ -1,0 +1,17 @@
+# Normalise line endings in the repository.
+#
+# Without this, a Windows checkout commits CRLF and a Linux CI checkout reads
+# LF, and every file looks modified to whichever machine did not write it.
+# Text is stored as LF and checked out however the local platform prefers.
+* text=auto eol=lf
+
+# The shell script runs on a Linux VPS. CRLF in a shebang line is a syntax
+# error there, so this one is never translated whatever the platform.
+*.sh text eol=lf
+
+# Binary assets are never translated and never diffed as text.
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+*.ico binary
