@@ -1,0 +1,280 @@
+@import "tailwindcss";
+
+/*
+  THESIS design tokens.
+
+  Ground values are read off the live Orion build, not guessed:
+  bg #08090a · surface #0d0f11 · border #1e2225
+  text #f2f4f5 · muted #a8b0b6 · faint #7b848a
+
+  Colour discipline (see HANDOFF "anti-slop contract"):
+  the ANALYSIS is monochrome except for TWO signals, each with one meaning.
+    --color-trust  amber  "you are carrying this on trust"  (unverifiable / inferred)
+    --color-fired  red    a tripwire has actually tripped
+  There is deliberately no green IN THE ANALYSIS. "Holding" is the default state
+  and earns no colour — if everything is coloured, nothing reads as a signal.
+
+  MARKET DATA is a separate layer and does not follow that rule.
+    --color-up     green  a quoted instrument is up over the period
+    --color-down   red    a quoted instrument is down over the period
+  A price tape is not a verdict. Green-up/red-down predates this product by a
+  century and every reader already has it; withholding it buys none of the
+  restraint the rule above protects, it just makes the tape harder to scan.
+  The two layers never share a surface: market colour appears only in the
+  sidebar watchlist, signal colour only inside an analysis block.
+*/
+@theme {
+  /* ---- ground ---------------------------------------------------------- */
+  --color-ground:       #08090a;
+  --color-surface:      #0d0f11;
+  --color-raised:       #14171a;
+  --color-line:         #1e2225;
+  --color-line-strong:  #2b3135;
+
+  /* ---- text ------------------------------------------------------------ */
+  --color-text:         #f2f4f5;
+  --color-muted:        #a8b0b6;
+  --color-faint:        #7b848a;
+
+  /* ---- the two signals ------------------------------------------------- */
+  --color-trust:        #e0a43c;
+  --color-trust-bg:     #2a2113;
+  --color-fired:        #e5484d;
+  --color-fired-bg:     #2d1517;
+
+  /* ---- market data: the tape, not the analysis ------------------------- */
+  --color-up:           #4cc38a;
+  /*
+    Same value as --color-fired today, kept as its own token because it means
+    something else. "A tripwire tripped" and "AAPL is down 1.5%" are unrelated
+    facts that happen to share a convention, and one of them may need to move
+    later without dragging the other with it.
+  */
+  --color-down:         #e5484d;
+
+  /* ---- brand ----------------------------------------------------------- */
+  --color-accent:       #5b8def;
+
+  /*
+    Code / identifier chips — metric names and breaker conditions.
+
+    NOT a status colour. It marks a syntactic category (this token names a field
+    the evaluator can compute), and it appears uniformly on every such token, so
+    it never signals that anything is good or bad.
+
+    Violet on purpose. Claude's inline code is salmon, but red here already
+    means "a tripwire fired", and a salmon code chip beside a red alarm would be
+    two warm reds saying different things. Violet is far from amber, far from
+    red, carries no financial connotation, and does not read as a link the way
+    the accent blue would.
+  */
+  --color-code:         #a79ae0;
+
+  /* ---- type: five sizes, no arbitrary values --------------------------- */
+  --text-meta:   0.6875rem;  /* 11px   labels, timestamps, units      */
+  --text-sm:     0.78125rem; /* 12.5px secondary, citations           */
+  --text-base:   0.875rem;   /* 14px   body                           */
+  --text-lg:     1.0625rem;  /* 17px   block headers                  */
+  --text-xl:     1.375rem;   /* 22px   thesis title                   */
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* ---- radii: pills for controls, soft rects for blocks ---------------- */
+  --radius-block: 10px;
+  --radius-pill:  999px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-ground);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+    Every figure in this interface is tabular. Proportional digits change width
+    as values update, which makes a column of numbers shift on refresh — the
+    single clearest amateur tell in a financial UI.
+  */
+  .tnum,
+  code,
+  kbd,
+  samp,
+  [data-figure] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+
+  /*
+    Tabular digits WITHOUT switching to mono. Dates are the reason: "26 Aug
+    2026" set in a monospace face puts the same width behind "A" as behind "6",
+    so the month abbreviation gains ugly gaps and the date reads as three
+    separate tokens. The digits still need to be tabular so a column of dates
+    lines up.
+  */
+  [data-num] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Focus is visible and consistent — Radix/shadcn primitives rely on it. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  }
+}
+
+
+/*
+  Motion.
+
+  The engine streams, so the interface should behave like something arriving
+  rather than something that was already finished. Each of these is tied to real
+  data landing — nothing here animates on a timer pretending to work.
+
+  Every one uses `both` so a stagger delay holds the start state instead of
+  flashing the finished element first.
+*/
+@keyframes thesis-rise {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes thesis-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* A bar growing from its own left edge, for the headroom gap. */
+@keyframes thesis-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* A marker settling into place rather than appearing at it. */
+@keyframes thesis-settle {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes thesis-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@layer utilities {
+  .animate-rise {
+    animation: thesis-rise 0.42s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+  .animate-fade {
+    animation: thesis-fade 0.5s ease both;
+  }
+  .animate-grow {
+    transform-origin: left center;
+    animation: thesis-grow 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+  .animate-settle {
+    animation: thesis-settle 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) 0.18s both;
+  }
+  .animate-breathe {
+    animation: thesis-breathe 1.6s ease-in-out infinite;
+  }
+}
+
+
+/*
+  Text arriving a word at a time.
+
+  Done with a staggered CSS delay per word rather than by re-rendering a growing
+  string: every word is in the DOM from the start, so the text is selectable,
+  searchable and read correctly by a screen reader while it is still appearing.
+  A typewriter that rebuilds the string on every tick is none of those things.
+*/
+@keyframes thesis-word {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+/* A stroke drawing itself. Paths declare pathLength="1" so one rule fits any length. */
+@keyframes thesis-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@layer utilities {
+  .animate-word {
+    animation: thesis-word 0.34s ease both;
+  }
+  .animate-draw {
+    stroke-dasharray: 1;
+    animation: thesis-draw 0.5s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* A cancelled draw must not leave the stroke hidden behind its own dash. */
+  .animate-draw {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
