@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PanelLeftClose, Plus, Search } from 'lucide-react';
 
 import type { WatchRow } from '@/app/api/watchlist/route';
@@ -35,6 +36,31 @@ import { cn } from '@/lib/utils';
  *   a capability it deliberately does not have. That slot holds data-source
  *   health instead, which is the thing a user actually needs to trust.
  */
+
+/**
+ * The collapse preference lives here, not in the Desk.
+ *
+ * It is a fact about the SIDEBAR, and keeping it in the one page that happened
+ * to render a sidebar first is why the sidebar could not be used anywhere else.
+ * Desk still passes its own value, so nothing about its behaviour changes.
+ */
+const PANEL_KEY = 'thesis.panel.collapsed.v1';
+
+function loadCollapsed(): boolean {
+  try {
+    return localStorage.getItem(PANEL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveCollapsed(value: boolean): void {
+  try {
+    localStorage.setItem(PANEL_KEY, value ? '1' : '0');
+  } catch {
+    // Blocked storage: the preference lasts for this session only.
+  }
+}
 
 export interface SessionSummary {
   id: string;
@@ -175,31 +201,98 @@ function useWatchlist(): WatchRow[] | null {
   return watch;
 }
 
+/**
+ * The shell, and it works with or without a Desk around it.
+ *
+ * Every prop below is optional now. It used to require four callbacks and three
+ * pieces of state, all owned by `Desk`, which meant the sidebar could only exist
+ * on the one route that rendered a Desk. Clicking into a thesis made the whole
+ * shell vanish, and the app read as two different products either side of a
+ * link.
+ *
+ * Given handlers it behaves exactly as it always did. Given none it falls back
+ * to plain navigation, fetches its own source health, and remembers its own
+ * collapsed state. A component that can only live inside one parent is not a
+ * shell.
+ */
 export function Sidebar({
-  sessions,
-  activeId,
+  sessions = [],
+  activeId = null,
   sourcesHealthy,
-  collapsed = false,
+  collapsed,
   onSelect,
   onNew,
   onPickTicker,
   onToggle,
   className,
 }: {
-  sessions: SessionSummary[];
-  activeId: string | null;
-  sourcesHealthy: boolean | null;
-  collapsed?: boolean;
-  onSelect: (id: string) => void;
-  onNew: () => void;
-  onPickTicker: (ticker: string) => void;
-  onToggle?: () => void;
+  sessions?: SessionSummary[];
+  activeId?: string | null;
+  /** Omit to let the sidebar check the sources itself. */
+  sourcesHealthy?: boolean | null | undefined;
+  /** Omit to let the sidebar own the preference. */
+  collapsed?: boolean | undefined;
+  onSelect?: ((id: string) => void) | undefined;
+  /** Omit to make "New thesis" navigate to the desk instead. */
+  onNew?: (() => void) | undefined;
+  /** Omit to make a watchlist row navigate to the desk instead. */
+  onPickTicker?: ((ticker: string) => void) | undefined;
+  onToggle?: (() => void) | undefined;
   className?: string;
-}) {
+} = {}) {
+  const router = useRouter();
+
+  /*
+    Own the state only when nobody else does. `undefined` means "not supplied",
+    which is different from `null` (checked, and the answer is unknown) and from
+    `false`. Collapsing those three would make an uncontrolled sidebar flicker
+    open on every render.
+  */
+  const [ownHealthy, setOwnHealthy] = useState<boolean | null>(null);
+  const [ownCollapsed, setOwnCollapsed] = useState(false);
+  const uncontrolledHealth = sourcesHealthy === undefined;
+  const uncontrolledCollapse = collapsed === undefined;
+
+  useEffect(() => {
+    if (uncontrolledCollapse) setOwnCollapsed(loadCollapsed());
+  }, [uncontrolledCollapse]);
+
+  useEffect(() => {
+    if (!uncontrolledHealth) return;
+    let live = true;
+    fetch('/api/diag')
+      .then((r) => r.json())
+      .then((d: { ok?: boolean }) => live && setOwnHealthy(Boolean(d.ok)))
+      .catch(() => live && setOwnHealthy(false));
+    return () => {
+      live = false;
+    };
+  }, [uncontrolledHealth]);
+
+  const health = uncontrolledHealth ? ownHealthy : sourcesHealthy;
+  const isCollapsed = uncontrolledCollapse ? ownCollapsed : collapsed;
+
+  const toggle =
+    onToggle ??
+    (() =>
+      setOwnCollapsed((current) => {
+        saveCollapsed(!current);
+        return !current;
+      }));
+
+  /*
+    Without handlers these become navigation. A watchlist row on the activity
+    screen cannot seed a draft in a Desk that is not mounted, so it carries the
+    ticker to the desk in the URL and the desk picks it up there.
+  */
+  const startNew = onNew ?? (() => router.push('/'));
+  const pickTicker =
+    onPickTicker ?? ((ticker: string) => router.push(`/?ticker=${encodeURIComponent(ticker)}`));
+  const select = onSelect ?? ((id: string) => router.push(`/?session=${encodeURIComponent(id)}`));
   const watch = useWatchlist();
 
   // Collapsed: only what survives without a label — the marks.
-  if (collapsed) {
+  if (isCollapsed) {
     return (
       <nav
         aria-label="Theses and watchlist"
@@ -207,7 +300,7 @@ export function Sidebar({
       >
         <button
           type="button"
-          onClick={onToggle}
+          onClick={toggle}
           aria-label="Expand panel"
           aria-expanded={false}
           title="Expand panel"
@@ -218,7 +311,7 @@ export function Sidebar({
 
         <button
           type="button"
-          onClick={onNew}
+          onClick={startNew}
           title="New thesis"
           aria-label="New thesis"
           className={cn(railClass(), 'bg-raised text-text')}
@@ -227,7 +320,7 @@ export function Sidebar({
         </button>
         <button
           type="button"
-          onClick={onNew}
+          onClick={startNew}
           title="Search theses"
           aria-label="Search theses"
           className={railClass()}
@@ -240,7 +333,7 @@ export function Sidebar({
             <button
               key={row.ticker}
               type="button"
-              onClick={() => onPickTicker(row.ticker)}
+              onClick={() => pickTicker(row.ticker)}
               className={railClass()}
               title={`${row.ticker}${row.last === undefined ? '' : ` · ${row.last.toFixed(2)}`}`}
               aria-label={`Start a thesis on ${row.ticker}`}
@@ -255,10 +348,10 @@ export function Sidebar({
             faint ring gives the slot presence without adding a second signal. */}
         <span
           className="mt-1 flex size-7 items-center justify-center rounded-full border border-line"
-          title={healthLabel(sourcesHealthy)}
+          title={healthLabel(health)}
         >
-          <span aria-hidden className={healthDotClass(sourcesHealthy)} />
-          <span className="sr-only">{healthLabel(sourcesHealthy)}</span>
+          <span aria-hidden className={healthDotClass(health)} />
+          <span className="sr-only">{healthLabel(health)}</span>
         </span>
       </nav>
     );
@@ -278,7 +371,7 @@ export function Sidebar({
         {onToggle ? (
           <button
             type="button"
-            onClick={onToggle}
+            onClick={toggle}
             aria-label="Collapse panel"
             aria-expanded
             title="Collapse panel"
@@ -289,11 +382,11 @@ export function Sidebar({
         ) : null}
       </div>
 
-      <button type="button" onClick={onNew} className={cn(rowClass(), 'bg-raised text-text')}>
+      <button type="button" onClick={startNew} className={cn(rowClass(), 'bg-raised text-text')}>
         <Plus size={15} strokeWidth={1.5} aria-hidden />
         New thesis
       </button>
-      <button type="button" className={rowClass()} onClick={onNew}>
+      <button type="button" className={rowClass()} onClick={startNew}>
         <Search size={15} strokeWidth={1.5} aria-hidden />
         Search theses
       </button>
@@ -307,7 +400,7 @@ export function Sidebar({
             <button
               key={row.ticker}
               type="button"
-              onClick={() => onPickTicker(row.ticker)}
+              onClick={() => pickTicker(row.ticker)}
               className={rowClass()}
               title={row.name ?? row.ticker}
             >
@@ -332,7 +425,7 @@ export function Sidebar({
               <button
                 key={session.id}
                 type="button"
-                onClick={() => onSelect(session.id)}
+                onClick={() => select(session.id)}
                 className={rowClass(session.id === activeId)}
               >
                 <span data-figure className="shrink-0 text-sm">
@@ -360,8 +453,8 @@ export function Sidebar({
       {/* Where Orion pins an account row. THESIS has no wallet to show, so this
           holds the thing a user does need to trust: whether the sources are up. */}
       <div className="flex items-center gap-2.5 px-3 pt-2">
-        <span aria-hidden className={healthDotClass(sourcesHealthy)} />
-        <span className="text-meta leading-tight text-faint">{healthLabel(sourcesHealthy)}</span>
+        <span aria-hidden className={healthDotClass(health)} />
+        <span className="text-meta leading-tight text-faint">{healthLabel(health)}</span>
       </div>
     </nav>
   );
