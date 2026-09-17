@@ -1,4 +1,4 @@
-import { SIGNAL_MCP_URL } from './config';
+import * as signal from './providers/signal';
 import type { DataSource, DerivedMetricName, HealthReport, HistoryPeriod } from './DataSource';
 import { resolveInstrument } from './registry';
 import {
@@ -46,112 +46,45 @@ import {
 export class SignalDataSource implements DataSource {
   readonly name = 'signal';
 
-  private sessionId: string | null = null;
-
+  /**
+   * Health is the Skills probe now, not one call to one dead tool.
+   *
+   * This used to call global_assets, whose upstream is down, so the entire
+   * Skills layer reported unavailable while the MCP transport and
+   * technical_analysis were both working fine. A health check aimed at a known
+   * broken dependency measures that dependency, not the thing it claims to
+   * describe.
+   *
+   * Healthy now means the handshake succeeded AND at least one Skill returned
+   * usable data. Every tool is listed either way, so a partial outage at
+   * Bitget's end stays visible instead of collapsing into one boolean.
+   *
+   * The MCP client itself lives in providers/signal.ts. It was duplicated here
+   * as three private methods, which is the sort of second copy that drifts.
+   */
   async healthCheck(): Promise<HealthReport> {
-    const t0 = Date.now();
+    const checkedAt = new Date().toISOString();
     try {
-      const probe = await this.callTool('global_assets', { action: 'price', symbol: 'NVDA' });
-      // A live-data call returning an error payload means degraded, not down.
-      const ok = !probe.isError;
+      const tools = await signal.probe();
       return {
         source: this.name,
-        healthy: ok,
-        providers: [
-          {
-            name: 'datahub-mcp',
-            ok,
-            detail: ok ? undefined : `reachable but no live data: ${probe.text.slice(0, 120)}`,
-            latencyMs: Date.now() - t0,
-          },
-        ],
-        checkedAt: new Date().toISOString(),
+        healthy: tools.some((t) => t.ok),
+        providers: tools.map((t) => ({
+          name: `skill:${t.tool}`,
+          ok: t.ok,
+          latencyMs: t.latencyMs,
+          ...(t.detail ? { detail: `${t.detail} (upstream: ${t.upstream})` } : {}),
+        })),
+        checkedAt,
       };
     } catch (err) {
       return {
         source: this.name,
         healthy: false,
-        providers: [
-          {
-            name: 'datahub-mcp',
-            ok: false,
-            detail: (err as Error).message,
-            latencyMs: Date.now() - t0,
-          },
-        ],
-        checkedAt: new Date().toISOString(),
+        providers: [{ name: 'datahub-mcp', ok: false, detail: (err as Error).message }],
+        checkedAt,
       };
     }
-  }
-
-  /** Minimal MCP streamable-HTTP client: initialize once, then call tools. */
-  private async callTool(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<{ text: string; isError: boolean }> {
-    if (!this.sessionId) await this.initialize();
-
-    const res = await fetch(SIGNAL_MCP_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        'mcp-session-id': this.sessionId!,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: Date.now(),
-        method: 'tools/call',
-        params: { name, arguments: args },
-      }),
-    });
-    if (!res.ok) throw new ProviderError(`signal MCP HTTP ${res.status}`, 'signal');
-
-    // Responses arrive as SSE frames; the payload is the last `data:` line.
-    const body = await res.text();
-    const line = body
-      .split('\n')
-      .filter((l) => l.startsWith('data:'))
-      .pop();
-    if (!line) throw new ProviderError('signal MCP returned no data frame', 'signal');
-
-    const parsed = JSON.parse(line.slice(5).trim()) as {
-      result?: { content?: Array<{ text?: string }>; isError?: boolean };
-    };
-    return {
-      text: parsed.result?.content?.[0]?.text ?? '',
-      isError: parsed.result?.isError ?? false,
-    };
-  }
-
-  private async initialize(): Promise<void> {
-    const res = await fetch(SIGNAL_MCP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'thesis', version: '0.1.0' },
-        },
-      }),
-    });
-    const sid = res.headers.get('mcp-session-id');
-    if (!sid) throw new ProviderError('signal MCP did not return a session id', 'signal');
-    this.sessionId = sid;
-
-    await fetch(SIGNAL_MCP_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        'mcp-session-id': sid,
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-    });
   }
 
   resolve(ticker: string): Promise<Instrument> {

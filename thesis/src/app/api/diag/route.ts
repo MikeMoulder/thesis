@@ -1,4 +1,5 @@
 import { getDataSource } from '@/data/index';
+import { probe as probeSignalSkills } from '@/data/providers/signal';
 
 /**
  * Deployment diagnostic.
@@ -15,7 +16,7 @@ import { getDataSource } from '@/data/index';
 
 export const runtime = 'nodejs'; // the Bitget Agent Hub SDK is Node-only
 export const dynamic = 'force-dynamic'; // never cache a reachability probe
-export const maxDuration = 30;
+export const maxDuration = 30; // the Skills probe is bounded well inside this
 
 type Probe = {
   name: string;
@@ -71,6 +72,19 @@ export async function GET() {
     }
   }
 
+  // 4. The bitget-signal Skills, called for real over MCP.
+  //
+  //    Reported separately from `ok` on purpose. These are Bitget's own
+  //    research Skills and most of their upstreams are down at their end, so
+  //    folding them into the overall status would mark this deployment
+  //    unhealthy for something no change here can fix. What belongs here is
+  //    the evidence: which Skills answered, how fast, and which upstream is
+  //    responsible when one did not.
+  //
+  //    Bounded at six seconds per tool and run in parallel, because the
+  //    failing ones take 17 to 32 seconds to return nothing.
+  const skills = await probeSignalSkills().catch(() => null);
+
   const allOk = probes.every((p) => p.ok);
 
   return Response.json(
@@ -85,6 +99,14 @@ export async function GET() {
       probes,
       providers: health?.providers ?? null,
       quote,
+      signalSkills: skills
+        ? {
+            transport: 'mcp',
+            answering: skills.filter((s) => s.ok).length,
+            total: skills.length,
+            tools: skills,
+          }
+        : { transport: 'mcp', answering: 0, total: 0, tools: [], detail: 'MCP handshake failed' },
       checkedAt: new Date().toISOString(),
     },
     {
