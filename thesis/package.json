@@ -1,0 +1,53 @@
+{
+  "name": "thesis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An AI research desk that attacks your trading thesis before you act on it.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev --port 3100",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx src/scripts/smoke.ts",
+    "health": "tsx src/scripts/health.ts",
+    "decompose:selftest": "tsx src/scripts/decompose-selftest.ts",
+    "decompose": "tsx src/scripts/decompose.ts",
+    "models": "tsx src/scripts/models.ts",
+    "attack": "tsx src/scripts/attack.ts",
+    "breakers:selftest": "tsx src/scripts/breakers-selftest.ts",
+    "test": "npm run decompose:selftest && npm run breakers:selftest && npm run actions:selftest && npm run scenario:selftest && npm run thesis:selftest && npm run backfill:selftest",
+    "evaluate": "tsx src/scripts/evaluate-demo.ts",
+    "actions:selftest": "tsx src/scripts/actions-selftest.ts",
+    "snapshot:history": "tsx src/scripts/snapshot-history.ts",
+    "scenario:selftest": "tsx src/scripts/scenario-selftest.ts",
+    "thesis:selftest": "tsx src/scripts/thesis-selftest.ts",
+    "backfill:selftest": "tsx src/scripts/backfill-selftest.ts",
+    "backfill": "tsx src/scripts/backfill.ts",
+    "memory:check": "tsx src/scripts/memory-check.ts"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@bitget-ai/bitget-agent-sdk": "^3.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "geist": "^1.7.2",
+    "lucide-react": "^1.46.0",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
+  }
+}

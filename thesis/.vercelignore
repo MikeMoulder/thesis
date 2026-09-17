@@ -1,0 +1,20 @@
+# Secrets never leave this machine. Environment values are set in the Vercel
+# dashboard, not uploaded with the source.
+.env
+.env.*
+!.env.example
+
+# Local run state: the persisted daily LLM quota counter.
+.thesis/
+
+node_modules/
+.next/
+*.log
+
+# Planning docs live one level up, but be explicit.
+*.bak
+tsconfig.json.pre-next.bak
+
+# The source artwork for the mark. public/mark*.png are generated from it and
+# are the only versions the app ever loads.
+thesis logo.png
