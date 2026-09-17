@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { PanelLeftClose, Plus, Search } from 'lucide-react';
 
 import type { WatchRow } from '@/app/api/watchlist/route';
+import { TickerMark } from '@/components/thesis/TickerMark';
 import { cn } from '@/lib/utils';
 
 /**
@@ -87,53 +88,6 @@ function BrandMark() {
       height={26}
       className="size-[26px] shrink-0 select-none"
       draggable={false}
-    />
-  );
-}
-
-/*
-  Two sizes, both written out in full so Tailwind's scanner can see them — a
-  class built from a variable never reaches the stylesheet.
-
-  The rail's marks are 15% smaller than the panel's. In the panel a mark is the
-  left end of a row and shares the line with a ticker, a price and a change, so
-  it has to hold its own against three columns of text. In the rail it is alone
-  inside a 36px hit area, and at the panel's size it filled that circle edge to
-  edge — a row of logos with no air between them reads as a toolbar, not a list.
-*/
-const MARK_SIZE = {
-  row: { px: 22, box: 'size-[22px]' },
-  rail: { px: 19, box: 'size-[19px]' },
-} as const;
-
-/** A real logo where we have one, a monogram where we do not — never a fake. */
-function TickerMark({ ticker, size = 'row' }: { ticker: string; size?: keyof typeof MARK_SIZE }) {
-  const [failed, setFailed] = useState(false);
-  const { px, box } = MARK_SIZE[size];
-
-  if (failed) {
-    return (
-      <span
-        aria-hidden
-        className={cn(
-          box,
-          'flex shrink-0 items-center justify-center rounded-[5px] bg-line-strong text-[9px] font-medium text-muted',
-        )}
-      >
-        {ticker.slice(0, 2)}
-      </span>
-    );
-  }
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`/logos/${ticker}.webp`}
-      alt=""
-      width={px}
-      height={px}
-      onError={() => setFailed(true)}
-      className={cn(box, 'shrink-0 rounded-[5px] bg-white/5 object-contain')}
     />
   );
 }
