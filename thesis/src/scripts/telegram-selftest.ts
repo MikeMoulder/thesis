@@ -22,6 +22,8 @@ import {
   CODE_TTL_SEC,
 } from '../telegram/bindings';
 import { esc, redact } from '../telegram/client';
+import { buildAlerts, worthTelling, type Change } from '../telegram/alerts';
+import type { RecheckReport } from '../thesis/recheck';
 
 let pass = 0;
 let fail = 0;
@@ -173,6 +175,166 @@ function safety(): void {
   check('escaping is not double applied to plain text', esc('NVDA holding') === 'NVDA holding');
 }
 
+
+// ---------------------------------------------------------------------------
+
+function change(over: Partial<Change> = {}): Change {
+  return {
+    thesisId: 'nvda-1',
+    ticker: 'NVDA',
+    at: '2026-09-17T14:00:00.000Z',
+    assumptionId: 'A1',
+    statement: 'AI infrastructure spending keeps accelerating.',
+    from: 'healthy',
+    to: 'broken',
+    breakerId: 'B1',
+    metric: 'grossMargin',
+    observed: 65,
+    threshold: 70,
+    provenance: { status: 'filed', source: 'SEC 0001045810-26-000075' },
+    ...over,
+  } as Change;
+}
+
+function report(changes: Change[]): RecheckReport {
+  return {
+    startedAt: '2026-09-17T14:00:00.000Z',
+    ms: 1200,
+    considered: 2,
+    checked: 2,
+    skipped: 0,
+    deferred: 0,
+    failed: 0,
+    modelCalls: 0,
+    changes,
+    outcomes: [],
+  } as RecheckReport;
+}
+
+function alertsFilter(): void {
+  console.log('\nalerts: what is worth telling');
+
+  check('a break is told', worthTelling(change({ from: 'healthy', to: 'broken' })));
+  check('an early warning is told', worthTelling(change({ from: 'healthy', to: 'weakening' })));
+  check('a worsening is told', worthTelling(change({ from: 'weakening', to: 'broken' })));
+  check('a recovery is told', worthTelling(change({ from: 'broken', to: 'healthy' })));
+
+  // Rule 3. A provider blip flips this on and off every fifteen minutes, and
+  // from here that is indistinguishable from a real loss of testability.
+  check('going uncheckable is NOT told', !worthTelling(change({ from: 'healthy', to: 'uncheckable' })));
+  check('coming back from uncheckable is NOT told', !worthTelling(change({ from: 'uncheckable', to: 'healthy' })));
+  check('a non-transition is not told', !worthTelling(change({ from: 'broken', to: 'broken' })));
+}
+
+function alertsGrouping(): void {
+  console.log('\nalerts: grouping and order');
+
+  check('a quiet tick builds nothing', buildAlerts(report([])).length === 0);
+
+  check(
+    'a tick of only uncheckable moves builds nothing',
+    buildAlerts(report([change({ to: 'uncheckable' })])).length === 0,
+  );
+
+  // Rule 1. Three pushes thirty seconds apart is how a user mutes a bot.
+  const three = buildAlerts(
+    report([
+      change({ assumptionId: 'A1' }),
+      change({ assumptionId: 'A2' }),
+      change({ assumptionId: 'A3' }),
+    ]),
+  );
+  check('three breaks on one thesis make ONE message', three.length === 1, `${three.length}`);
+  check('that message counts all three', three[0]?.changes.length === 3);
+  check('the headline counts them', three[0]?.html.includes('3 broken') === true, three[0]?.html);
+
+  // The headline and the body must agree. A reader trusts the headline and
+  // stops there, so a mixed message that says only "1 broken" undercounts.
+  const mixed = buildAlerts(
+    report([
+      change({ assumptionId: 'A1', to: 'broken', from: 'weakening' }),
+      change({ assumptionId: 'A2', to: 'weakening', from: 'healthy' }),
+    ]),
+  );
+  check('a mixed message counts both states', mixed[0]?.html.includes('1 broken, 1 weakening') === true, mixed[0]?.html);
+
+  const two = buildAlerts(
+    report([
+      change({ thesisId: 'tsla-1', ticker: 'TSLA', to: 'weakening' }),
+      change({ thesisId: 'nvda-1', ticker: 'NVDA', to: 'broken' }),
+    ]),
+  );
+  check('two theses make two messages', two.length === 2);
+  check('the broken thesis is first', two[0]?.ticker === 'NVDA', two[0]?.ticker);
+}
+
+function alertsContent(): void {
+  console.log('\nalerts: what the message carries');
+
+  const [alert] = buildAlerts(report([change()]), 'https://thesis.example.com');
+  const html = alert?.html ?? '';
+
+  check('the ticker is in the headline', html.includes('<b>NVDA</b>'));
+  check('the verdict is stated', html.includes('BROKEN'));
+  check('the previous state is stated', html.includes('was healthy'));
+
+  // Rule 4. An alarm without a number cannot be acted on at 3am.
+  check('the observed value travels with it', html.includes('65.00%'), html);
+  check('the threshold travels with it', html.includes('70.00%'));
+  check('the filing is cited', html.includes('SEC 0001045810-26-000075'));
+
+  // The desk translates metric identifiers into words, and a notification is
+  // no place to start leaking property names at someone.
+  check('the metric reads as words', html.includes('gross margin'), html);
+  check('the raw identifier is not shown', !html.includes('grossMargin'), html);
+  check('the thesis is linked', html.includes('https://thesis.example.com/thesis/nvda-1'));
+  check('the check time is stated', html.includes('17 Sep 14:00 UTC'), html);
+
+  // An event breaker carries no metric. "undefined crossed undefined" is a
+  // worse explanation of a broken belief than no explanation.
+  const bare = buildAlerts(
+    report([change({ metric: undefined, observed: undefined, threshold: undefined })]),
+  );
+  check('a change with no numbers prints no undefined', !bare[0]?.html.includes('undefined'), bare[0]?.html);
+  check('a change with no numbers still names the verdict', bare[0]?.html.includes('BROKEN') === true);
+
+  // A statement is the user's own prose and can contain anything.
+  const hostile = buildAlerts(
+    report([change({ statement: 'margin < 70% & falling' })]),
+  );
+  check('a statement is HTML escaped', hostile[0]?.html.includes('&lt; 70% &amp; falling') === true, hostile[0]?.html);
+
+  const long = 'x'.repeat(400);
+  const clipped = buildAlerts(report([change({ statement: long })]));
+  check('a very long statement is clipped', (clipped[0]?.html.length ?? 0) < 600);
+  check('a clipped statement says so', clipped[0]?.html.includes('...') === true);
+
+  const recovery = buildAlerts(report([change({ from: 'broken', to: 'healthy', observed: 72 })]));
+  check('a recovery is labelled RECOVERED', recovery[0]?.html.includes('RECOVERED') === true);
+  check('a recovery reads "back inside"', recovery[0]?.html.includes('back inside') === true, recovery[0]?.html);
+
+  /*
+    Only a break has crossed its line. A weakening reading is closer to the
+    threshold than it was and has NOT reached it, so "crossed" there states
+    something that did not happen. This shipped wrong once: a drawdown of
+    -27.4% against a -30% line printed as "crossed", which a user would act on.
+  */
+  const nearMiss = buildAlerts(
+    report([
+      change({
+        from: 'healthy',
+        to: 'weakening',
+        metric: 'drawdownFromHigh',
+        observed: -27.4,
+        threshold: -30,
+      }),
+    ]),
+  );
+  check('a weakening reading has NOT crossed', !nearMiss[0]?.html.includes('crossed'), nearMiss[0]?.html);
+  check('a weakening reading is "closing on" its line', nearMiss[0]?.html.includes('closing on') === true);
+  check('a break still reads "crossed"', buildAlerts(report([change()]))[0]?.html.includes('crossed') === true);
+}
+
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -180,6 +342,9 @@ async function main(): Promise<void> {
   await expiry();
   await rebinding();
   safety();
+  alertsFilter();
+  alertsGrouping();
+  alertsContent();
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   process.exit(fail === 0 ? 0 : 1);

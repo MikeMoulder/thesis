@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { getDataSource } from '@/data/index';
+import { deliverAlerts } from '@/telegram/alerts';
+import { getBindingStore } from '@/telegram/bindings';
 import { recheckAll } from '@/thesis/recheck';
 import { getStore, storeStatus } from '@/thesis/store';
 
@@ -84,10 +86,30 @@ async function run(request: Request): Promise<Response> {
       deadline: Date.now() + BUDGET_MS,
     });
 
-    return Response.json(report, {
-      // Never let a CDN or a scheduler's proxy serve a stale report.
-      headers: { 'cache-control': 'no-store' },
-    });
+    /*
+      Telegram is delivered AFTER the checks are written, never before and
+      never instead. The check is the product and it is already durable by
+      this line; notification is the reachable half. deliverAlerts never
+      throws for the same reason, and this catch is the second layer of the
+      same argument rather than a redundancy.
+
+      A quiet tick does no work at all: buildAlerts returns an empty list
+      before the binding store is ever read.
+    */
+    let telegram;
+    try {
+      telegram = await deliverAlerts(report, getBindingStore(), url.origin);
+    } catch (error) {
+      telegram = { error: error instanceof Error ? error.message : String(error) };
+    }
+
+    return Response.json(
+      { ...report, telegram },
+      {
+        // Never let a CDN or a scheduler's proxy serve a stale report.
+        headers: { 'cache-control': 'no-store' },
+      },
+    );
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : String(error) },
