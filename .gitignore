@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------------------
+# Dependencies and build output
+# ---------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Next.js generates this on every dev start. Regenerated, never authored.
+next-env.d.ts
+
+# ---------------------------------------------------------------------------
+# Secrets
+#
+# .env.example is the only one that ships. It documents which keys exist
+# without carrying a single value, which is the whole point of it.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Platform and tooling state
+# ---------------------------------------------------------------------------
+.vercel/
+.vercel
+.thesis/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Local editor and agent settings. launch.json is shared project config and is
+# tracked deliberately; anything ending .local is one machine's business.
+.claude/settings.local.json
+*.local.json
+!.claude/launch.json
+
+# ---------------------------------------------------------------------------
+# Operating system noise
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Working files that are not the product
+# ---------------------------------------------------------------------------
+*.bak
+*.orig
+*.tmp
+scratch/
+
+# ---------------------------------------------------------------------------
+# Markdown: the README is the only prose that ships
+#
+# Everything else in this repo's Markdown is working material. The handoff log,
+# the idea documents, the hackathon brief and the agent instructions are how the
+# project was built, not what it is, and a reader arriving from GitHub should
+# meet the product rather than the scaffolding.
+#
+# Ignore every .md, then re-admit the README and the documentation it actually
+# links to. The negations have to come AFTER the blanket rule, and each parent
+# directory has to be re-admitted before a file inside it can be.
+# ---------------------------------------------------------------------------
+*.md
+!README.md
+!thesis/README.md
+
+# Documentation the README depends on: prose it links to and images it embeds.
+!docs/
+!docs/**/*.md
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.svg
+!docs/**/*.gif
