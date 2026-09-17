@@ -90,6 +90,12 @@ export interface DataSource {
    */
   getSharesOutstanding(instrument: Instrument): Promise<Sourced<number>>;
 
+  /**
+   * The share count over time, dated by when each figure became knowable.
+   * Needed to value a company as it stood at a past moment rather than now.
+   */
+  getSharesOutstandingSeries(instrument: Instrument): Promise<Array<{ date: string; value: number }>>;
+
   // -- News -----------------------------------------------------------------
 
   getNews(

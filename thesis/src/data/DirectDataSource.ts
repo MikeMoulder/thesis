@@ -73,6 +73,10 @@ export class DirectDataSource implements DataSource {
     return edgar.getSharesOutstanding(instrument);
   }
 
+  getSharesOutstandingSeries(instrument: Instrument) {
+    return edgar.getSharesOutstandingSeries(instrument);
+  }
+
   getFundamentalSeries(
     instrument: Instrument,
     concept: string,

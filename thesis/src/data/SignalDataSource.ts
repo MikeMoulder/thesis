@@ -177,6 +177,10 @@ export class SignalDataSource implements DataSource {
     this.notAvailable('getSharesOutstanding');
   }
 
+  getSharesOutstandingSeries(_i: Instrument): Promise<Array<{ date: string; value: number }>> {
+    this.notAvailable('getSharesOutstandingSeries');
+  }
+
   getFundamentalSeries(_i: Instrument, _c: string): Promise<Sourced<FundamentalPoint[]>> {
     this.notAvailable('getFundamentalSeries');
   }

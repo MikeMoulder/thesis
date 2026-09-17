@@ -284,6 +284,60 @@ export async function getSharesOutstanding(instrument: Instrument): Promise<Sour
   throw new NoDataError(`${instrument.ticker} does not report shares outstanding`, 'edgar');
 }
 
+/**
+ * Shares outstanding over time, dated by when each figure became KNOWABLE.
+ *
+ * The single latest count answers "what is this company worth today". A base
+ * rate asks "how often has it traded this expensively before", and that needs
+ * the count as it stood at each past moment. Pairing today's share count with a
+ * price from three years ago would invent a valuation that never existed, which
+ * is the same look-ahead error the historical backfill exists to avoid.
+ *
+ * Dated by `filed` rather than by period end, for the same reason everything
+ * else here is: a share count from a quarter that closed in June was not known
+ * to anybody until the filing landed in July.
+ */
+export async function getSharesOutstandingSeries(
+  instrument: Instrument,
+): Promise<Array<{ date: string; value: number }>> {
+  const facts = await fetchCompanyFacts(requireCik(instrument));
+
+  const concepts = [
+    'EntityCommonStockSharesOutstanding',
+    'CommonStockSharesOutstanding',
+    'WeightedAverageNumberOfDilutedSharesOutstanding',
+  ];
+
+  // Keep the FIRST concept that yields a usable series, in preference order,
+  // rather than merging. Mixing a cover page count with a weighted average
+  // would make the series step up and down for reasons that are about tagging
+  // rather than about the company.
+  for (const concept of concepts) {
+    const node = findConcept(facts, concept);
+    if (!node) continue;
+    const unit = Object.keys(node.units)[0];
+    if (!unit) continue;
+
+    const byDate = new Map<string, number>();
+    for (const fact of node.units[unit] ?? []) {
+      if (!fact.filed || fact.val <= 0) continue;
+      // Latest filing for a given knowable date wins, as restatements do.
+      byDate.set(fact.filed, fact.val);
+    }
+
+    const series = [...byDate.entries()]
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (series.length > 0) return series;
+  }
+
+  throw new NoDataError(
+    `${instrument.ticker} does not report a share count history`,
+    'edgar',
+  );
+}
+
 export async function getFundamentalSeries(
   instrument: Instrument,
   concept: string,
