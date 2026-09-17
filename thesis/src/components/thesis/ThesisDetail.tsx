@@ -4,6 +4,7 @@ import { BlockSection } from '@/components/thesis/AnalysisBlock';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { Autopsy } from '@/components/thesis/Autopsy';
 import { ResearchBrief } from '@/components/thesis/ResearchBrief';
+import { SessionContext } from '@/components/thesis/SessionContext';
 import { TickerMark } from '@/components/thesis/TickerMark';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { formatValue } from '@/engine/breakers/evaluate';
@@ -383,6 +384,14 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
             })}
           </BlockSection>
         ) : null}
+
+        {/* Who is pricing the token right now, while the tripwires above are
+            still the reader's present tense. It sits AFTER them and before the
+            autopsy because the page runs now, then now-in-context, then
+            history, and a note about overnight pricing dropped in among the
+            historical sections would read as part of the record. It removes
+            itself during US market hours and whenever the Skill is down. */}
+        <SessionContext ticker={thesis.ticker} />
 
         {/* The autopsy sits between the working and the log: it is a reading OF
             the log, so it belongs next to it, and it answers the question the
