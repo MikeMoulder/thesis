@@ -24,13 +24,18 @@ import '../env.js';
  */
 import { getDataSource, resolveInstrument } from '../data/index';
 import { readMetric } from '../engine/breakers/metrics';
-import { FUNDAMENTAL_METRICS, PRICE_METRICS, type Metric } from '../engine/breakers/types';
+import {
+  FUNDAMENTAL_METRICS,
+  PRICE_METRICS,
+  VALUATION_METRICS,
+  type Metric,
+} from '../engine/breakers/types';
 
 const DEFAULT_TICKERS = ['AMD', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'META', 'AMZN', 'GOOGL', 'INTC'];
 
 const tickers = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const universe = tickers.length > 0 ? tickers : DEFAULT_TICKERS;
-const metrics: Metric[] = [...FUNDAMENTAL_METRICS, ...PRICE_METRICS];
+const metrics: Metric[] = [...FUNDAMENTAL_METRICS, ...PRICE_METRICS, ...VALUATION_METRICS];
 
 const ds = getDataSource();
 
