@@ -211,6 +211,98 @@ BTC/USDT     rsi 50.3, neutral, 506ms
 
 ---
 
+## The part that runs while you sleep
+
+Everything above is worth nothing if a tripwire crosses at three in the morning and the news sits on a web page until somebody opens a laptop. **Fourteen days of notice is not notice if nobody received it.**
+
+So the last piece of THESIS is a Telegram bot, and it is the piece that turns a research tool into something that watches your back.
+
+### What actually lands on your phone
+
+This is the real output of the alert builder, not a mock-up of one. Two beliefs moved on the same check:
+
+```text
+🔴 TSLA  1 broken, 1 weakening
+
+"90-day realised volatility will not push above 50%."
+BROKEN, was weakening
+volatility 57.57% crossed 50.00%
+Yahoo Finance TSLA 1y/1d
+
+"Year-over-year revenue growth will remain at or above 25%."
+WEAKENING, was healthy
+revenue growth 25.52% closing on 25.00%
+SEC 10-Q 0001318605-26-000091
+
+Checked 7 Jul 14:15 UTC.
+https://thesis-mikes-projects-7ac9bd1b.vercel.app/thesis/tsla-c5qqql
+```
+
+Read that again and notice what is in it. Not "an assumption broke". The sentence you wrote, the exact number, the exact line it crossed, **and the filing it came from**. You can act on that at 3am without opening a laptop, and you can check it later without trusting us.
+
+### Four rules, and the fourth one is the product
+
+**One message per thesis, never one per assumption.** Three beliefs can break on the same check. Three separate pushes thirty seconds apart is exactly how a person mutes a bot forever, and a muted channel delivers nothing at all.
+
+**Only when something changes.** A quiet check sends nothing. A heartbeat saying "all fine" four times an hour trains people to swipe the notification away without reading it, which guarantees they swipe away the one that mattered.
+
+**Never for "cannot check this".** This one is uncomfortable, because the product treats an unmeasurable belief as the most dangerous kind. But a brief hiccup at a data provider flips a belief to unreadable and back on the next check, and from a phone that is indistinguishable from a real, permanent loss. Being wrong in the noisy direction destroys the channel. The desk still shows it in full.
+
+**The number travels with the verdict.** "An assumption broke" is an alarm. "Volatility 57.57% crossed 50.00%, Yahoo Finance TSLA 1y/1d" is information. A verdict a reader cannot trace back to a source is an opinion, and this product does not send opinions.
+
+### Connecting your phone, and why it is done this way
+
+Your browser cannot see Telegram and Telegram cannot see your browser, so the two need a way to recognise each other. The desk shows a short code, you hand it to the bot, and the bot proves the chat is yours by presenting it.
+
+Four details in that handshake, each one a specific failure avoided:
+
+| Detail | The failure it prevents |
+|---|---|
+| Codes expire after ten minutes | A code that works forever is a permanent password to your alert feed, printed on a screen during a demo |
+| Codes are single use, deleted on redemption | A code read over your shoulder in a recording is already spent |
+| One chat holds one binding, re-binding replaces | Press the button twice and you would otherwise get every alert twice, and assume the product is broken |
+| The alphabet excludes O, 0, I, 1 and L | You read this off a laptop and type it into a phone. "Was that an oh or a zero" is a conversation no product should have |
+
+### The bot understands four things
+
+```text
+/start    connect this chat, or resume after /stop
+/bind     the same, with the code from the desk
+/status   what is being watched, and where each thesis stands
+/stop     pause alerts without losing your connection
+```
+
+### Security, because a webhook is a public URL
+
+Telegram signs nothing. The address it delivers to is guessable. The only proof that a message is genuinely from Telegram is a secret token we hand over when registering the webhook, which comes back on every single delivery. **Without checking it, anyone who guessed the path could post a forged bind code and walk straight into someone's alert feed.** We check it, and an unauthenticated caller is the one and only case that gets a rejection.
+
+Everything else returns success, deliberately, even when the incoming message is nonsense or our own storage is down. Telegram treats any error as a failed delivery and retries with backoff, so a bug that returned an error would turn one bad message into a retry storm and eventually get the whole webhook dropped. Problems are explained to the user in the chat instead.
+
+The alert sender never throws either, for the same reason at a different layer: **a Telegram outage must cost you a notification, not your check.** The check still runs, the result is still recorded, the desk still shows it.
+
+If a chat blocks the bot, we do not drop it on the first failure. A single block response has been seen from a temporary account state, so we wait for three in a row before throwing away something a person deliberately set up.
+
+### Is it actually running
+
+Yes, and you can ask it two questions from the command line:
+
+```bash
+npm run tg:check      is the bot alive, is the webhook pointed here, any errors
+npm run cron:check    is the 15 minute loop actually running, anything missed
+```
+
+Measured on the live deployment:
+
+```text
+TSLA   checked every 15 minutes    0 missed in the last 24 hours
+NVDA   checked every 15 minutes    0 missed in the last 24 hours
+telegram bind endpoint             200, configured
+```
+
+And the whole of it, from the handshake to the message format to the failure handling, is covered by **74 tests**, the second largest suite in the project.
+
+---
+
 ## How it works
 
 ```text
