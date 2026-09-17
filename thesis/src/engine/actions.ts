@@ -1,6 +1,7 @@
 import type { Evaluation } from './breakers/evaluate';
 import { PERCENT_METRICS, type BreakerSet, type ThesisBreaker } from './breakers/types';
 import type { Decomposition } from './decomposer/types';
+import { humaniseMetrics } from '../lib/glossary';
 
 /**
  * What to do now — the closing section of a run.
@@ -102,16 +103,24 @@ export function deriveActions(
     const plural = unfalsifiable.length > 1;
     actions.push({
       kind: 'unfalsifiable',
+      /*
+        This said "pure faith", which reads as a judgement on the user's
+        thinking rather than a statement about our data coverage. The
+        assumption may well be correct. What is true is narrower and more
+        useful: no number exists anywhere in this desk that could settle it,
+        so no alert will ever arrive about it.
+      */
       headline: plural
-        ? `${unfalsifiable.length} things here are pure faith. Only you can settle them.`
-        : 'One thing here is pure faith. Only you can settle it.',
+        ? `${unfalsifiable.length} things here cannot be measured. You will never be alerted about them.`
+        : 'One thing here cannot be measured. You will never be alerted about it.',
       detail:
-        `${plural ? 'They are' : 'It is'} holding the whole trade up, and there is no filing, ` +
-        `no price and no feed anywhere in this desk that could warn you if ` +
-        `${plural ? 'they stopped' : 'it stopped'} being true. That does not make ` +
-        `${plural ? 'them' : 'it'} wrong — it means no tripwire below will ever cover ` +
-        `${plural ? 'them' : 'it'}, so before you put money behind this, ` +
-        `${plural ? 'these are the ones' : 'this is the one'} to satisfy yourself about.`,
+        `${plural ? 'These are' : 'This is'} holding the whole trade up, and there is no filing, ` +
+        `no price and no data feed in this desk that could tell you if ` +
+        `${plural ? 'they stopped' : 'it stopped'} being true. That does not mean ` +
+        `${plural ? 'they are' : 'it is'} wrong. It means no tripwire can ever cover ` +
+        `${plural ? 'them' : 'it'}, so this is a judgement that stays with you. ` +
+        `Before you put money behind this, satisfy yourself about ` +
+        `${plural ? 'these' : 'this'} by hand.`,
       bullets: unfalsifiable.map((id) => byId(id)?.statement ?? id),
       refs: unfalsifiable,
     });
@@ -133,7 +142,8 @@ export function deriveActions(
         detail:
           `The data for ${plural ? 'these' : 'this'} does exist, so ${plural ? 'they are' : 'it is'} ` +
           'not hopeless the way the ones above are. Running the analysis again may well produce a ' +
-          `tripwire. Until it does, you are just as blind to ${plural ? 'them' : 'it'}.`,
+          `tripwire. Until it does, you are just as much in the dark about ` +
+          `${plural ? 'them' : 'it'} as if nothing could measure ${plural ? 'them' : 'it'} at all.`,
         bullets: uncoveredTestable.map((id) => byId(id)?.statement ?? id),
         refs: uncoveredTestable,
       });
@@ -149,9 +159,9 @@ export function deriveActions(
             ? 'Some tripwires could not be read. Treat them as unknown, not as fine.'
             : 'One tripwire could not be read. Treat it as unknown, not as fine.',
         detail:
-          `${blind[0]?.reason ?? 'No data source is wired for this one.'} ` +
-          'An unread tripwire is not a quiet one — you simply do not know, and you would ' +
-          'have to check by hand.',
+          `${humaniseMetrics(blind[0]?.reason ?? 'No data source is wired for this one.')} ` +
+          'An unread tripwire is not a quiet one. You simply do not know either way, ' +
+          'and you would have to check this by hand.',
         refs: blind.map((b) => b.breakerId),
       });
     }
@@ -180,7 +190,7 @@ export function deriveActions(
           `${
             closestBreaker.cadence === 'periodic'
               ? 'It cannot move until the company files its next quarterly report, so there is ' +
-                'nothing to watch for day to day — put it in the diary instead.'
+                'nothing to watch for day to day. Put the filing date in your diary instead.'
               : 'It is based on the live price, so it can move at any moment.'
           }`,
         refs: [closestBreaker.id],
@@ -194,7 +204,7 @@ export function deriveActions(
         headline: 'Nothing here can change until the next earnings report.',
         detail:
           'Every tripwire depends on numbers that only appear in a quarterly filing. However ' +
-          'far the price moves between now and then, none of this gets retested — so there is ' +
+          'far the price moves between now and then, none of this gets retested, so there is ' +
           'no point checking back daily.',
         refs: breakerSet.breakers.map((b) => b.id),
       });

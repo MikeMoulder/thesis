@@ -22,6 +22,30 @@ const TONE: Record<ActionKind, string> = {
   quiet: 'text-text',
 };
 
+/*
+  What KIND of thing each item is, in three words, above the headline.
+
+  Without it every entry arrives as an undifferentiated paragraph and a reader
+  has to finish the sentence before knowing whether it is a warning, a gap in
+  our coverage, or simply the thing most worth watching. The label lets the list
+  be scanned rather than read.
+*/
+const KIND_LABEL: Record<ActionKind, string> = {
+  unfalsifiable: 'nothing can measure this',
+  uncovered: 'measurable, but not covered',
+  blind: 'could not be read today',
+  nearest: 'closest to tripping',
+  quiet: 'nothing moves until earnings',
+};
+
+const KIND_TONE: Record<ActionKind, string> = {
+  unfalsifiable: 'text-trust/80',
+  uncovered: 'text-faint',
+  blind: 'text-faint',
+  nearest: 'text-faint',
+  quiet: 'text-faint',
+};
+
 export function NextActions({
   actions,
   className,
@@ -32,13 +56,16 @@ export function NextActions({
   if (actions.length === 0) {
     return (
       <p className={cn('max-w-prose text-base text-muted', className)}>
-        Nothing outstanding. Every assumption this thesis rests on has a tripwire that can be read.
+        Nothing outstanding. Every single thing this thesis rests on has a number watching it, and
+        all of them could be read today.
       </p>
     );
   }
 
   return (
-    <ol className={cn('flex flex-col', className)}>
+    // list-none explicitly: a browser that renders its own markers puts "1." in
+    // front of a number this component already prints, and the row reads "1. 1".
+    <ol className={cn('flex list-none flex-col', className)}>
       {actions.map((action, index) => (
         <li
           key={`${action.kind}-${action.refs.join('-')}`}
@@ -48,15 +75,23 @@ export function NextActions({
             {index + 1}
           </span>
           <div className="min-w-0">
-            <p className={cn('max-w-prose text-lg leading-snug', TONE[action.kind])}>
+            <p
+              className={cn(
+                'text-meta uppercase tracking-[0.12em]',
+                KIND_TONE[action.kind],
+              )}
+            >
+              {KIND_LABEL[action.kind]}
+            </p>
+            <p className={cn('mt-1 max-w-prose text-lg font-medium leading-snug', TONE[action.kind])}>
               <Reveal text={action.headline} delay={index * 260} step={26} />
             </p>
             <p className="mt-1.5 max-w-prose text-base leading-relaxed text-muted">
               <Reveal text={action.detail} delay={index * 260 + 240} step={13} maxDelay={1100} />
             </p>
-            {/* The concrete items, in the user's own subject matter — an action
-                that names A1 and A2 is not actionable unless you can see what
-                A1 and A2 actually say. */}
+            {/* The concrete items, in the user's own subject matter. An action
+                that names an internal id is not actionable unless the reader
+                can see what that id actually says. */}
             {action.bullets?.length ? (
               <ul className="mt-3 flex flex-col gap-2 border-l border-line pl-4">
                 {action.bullets.map((bullet, i) => (
