@@ -2,11 +2,13 @@ import Link from 'next/link';
 
 import { BlockSection } from '@/components/thesis/AnalysisBlock';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { Autopsy } from '@/components/thesis/Autopsy';
 import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { TickerMark } from '@/components/thesis/TickerMark';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { formatValue } from '@/engine/breakers/evaluate';
 import { deriveBrief } from '@/engine/brief';
+import { deriveAutopsy } from '@/thesis/autopsy';
 import { formatRelative, formatStamp, isStale } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import {
@@ -379,6 +381,15 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
                 />
               );
             })}
+          </BlockSection>
+        ) : null}
+
+        {/* The autopsy sits between the working and the log: it is a reading OF
+            the log, so it belongs next to it, and it answers the question the
+            rest of the page raises. */}
+        {thesis.checks.length > 1 ? (
+          <BlockSection title="What survived, and what warned you">
+            <Autopsy autopsy={deriveAutopsy(thesis)} />
           </BlockSection>
         ) : null}
 
