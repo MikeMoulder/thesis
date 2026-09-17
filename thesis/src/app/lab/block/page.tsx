@@ -81,7 +81,7 @@ export default function BlockLabPage() {
                 <Value>26</Value> prior occurrences in <Value>40</Value> reported quarters. Median
                 forward move <Value>+3.6%</Value> at 30 days, <Value>+15.1%</Value> at 90 days.{' '}
                 <Term>This tripwire is close to meaningless</Term> — NVIDIA ran 55–65% margins for
-                years before the AI build-out, so <Code>grossMargin &lt; 70%</Code> was normal and
+                years before the AI build-out, so <Code>gross margin &lt; 70%</Code> was normal and
                 was followed by gains.
               </Prose>
             </Disclosure>
@@ -93,7 +93,7 @@ export default function BlockLabPage() {
 
         <AnalysisBlock
           kind="scenario"
-          subject="NVDA · grossMargin 62%, revenueGrowthYoY 15%"
+          subject="NVDA · gross margin 62%, revenue growth 15%"
           meta={{ modelCalls: 0, latencyMs: 310, at: '2026-09-16T14:03:02.000Z' }}
         >
           <BlockSection title="Tripwires · scenario">
