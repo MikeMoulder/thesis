@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { AppShell } from '@/components/shell/AppShell';
 import { ThesisDetail } from '@/components/thesis/ThesisDetail';
 import { getStore } from '@/thesis/store';
 import { currentVersion, latestCheck, type ThesisRecord } from '@/thesis/types';
@@ -55,5 +56,9 @@ export default async function ThesisPage({ params }: { params: Promise<{ id: str
   const thesis = await load(id);
   if (!thesis) notFound();
 
-  return <ThesisDetail thesis={thesis} />;
+  return (
+    <AppShell>
+      <ThesisDetail thesis={thesis} />
+    </AppShell>
+  );
 }

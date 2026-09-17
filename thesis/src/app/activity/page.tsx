@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { Activity } from '@/components/activity/Activity';
+import { AppShell } from '@/components/shell/AppShell';
 import { buildActivityFeed, summariseActivity } from '@/thesis/activity';
 import { getStore } from '@/thesis/store';
 
@@ -36,5 +37,9 @@ export default async function Page() {
     .catch(() => []);
 
   const entries = buildActivityFeed(theses, FEED_LIMIT);
-  return <Activity entries={entries} summary={summariseActivity(entries)} now={Date.now()} />;
+  return (
+    <AppShell>
+      <Activity entries={entries} summary={summariseActivity(entries)} now={Date.now()} />
+    </AppShell>
+  );
 }
