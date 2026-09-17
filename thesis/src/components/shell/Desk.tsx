@@ -722,6 +722,14 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
               <TripwireRow
                 breaker={breaker}
                 evaluation={state.evaluations?.find((e) => e.breakerId === breaker.id)}
+                {...(state.decomposition
+                  ? {
+                      watches:
+                        state.decomposition.assumptions.findIndex(
+                          (a) => a.id === breaker.assumptionRef,
+                        ) + 1,
+                    }
+                  : {})}
               />
             </div>
           ))}

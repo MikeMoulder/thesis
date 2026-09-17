@@ -100,11 +100,20 @@ function meaning(breaker: ThesisBreaker, evaluation: Evaluation): string | null 
 export function TripwireRow({
   breaker,
   evaluation,
+  watches,
   trend,
   className,
 }: {
   breaker: ThesisBreaker;
   evaluation?: Evaluation | undefined;
+  /**
+   * Which numbered assumption this tripwire watches, as the tree numbers them.
+   *
+   * Replaces printing the engine's own id. "B1" is what the generator called
+   * this breaker and it meant nothing to a reader; "watches 3" points back at
+   * the third line of the list they just read.
+   */
+  watches?: number | undefined;
   /**
    * The same breaker as it stood at the PREVIOUS check.
    *
@@ -135,8 +144,14 @@ export function TripwireRow({
             unrecovered ? 'bg-fired' : status ? DOT_TONE[status] : 'bg-line',
           )}
         />
-        <span data-figure className="text-sm text-faint">
-          {breaker.id}
+        <span className="text-sm text-faint">
+          {watches === undefined ? (
+            <span data-figure>{breaker.id}</span>
+          ) : (
+            <>
+              watches <span data-figure>{watches}</span>
+            </>
+          )}
         </span>
         <PlainCondition breaker={breaker} className="min-w-0 flex-1" />
         <span
@@ -195,7 +210,7 @@ export function TripwireRow({
 
       {unrecovered ? (
         <p className="mt-2.5 max-w-prose pl-[18px] text-base text-fired/85">
-          This fired recently and has come back inside the line — but not far enough to call it
+          This fired recently and has come back inside the line, but not far enough to call it
           recovered. It stays broken until it clears the line properly, or holds inside it for
           three checks running.
         </p>
@@ -287,7 +302,7 @@ function Movement({
       {closing ? 'Moved' : 'Backed off'}{' '}
       <span data-figure>{formatValue(metric, Math.abs(closed))}</span>{' '}
       {closing ? 'closer to this line' : 'away from this line'} since the last check.
-      {fullMove ? ' A full typical move — but it is still clear of the line, so nothing has changed.' : ''}
+      {fullMove ? ' That is a full typical move, but it is still clear of the line, so nothing has changed.' : ''}
     </p>
   );
 }

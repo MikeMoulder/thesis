@@ -49,12 +49,14 @@ export const HEALTH_DOT: Record<Health, string> = {
  */
 export const BASIS_CLAUSE: Record<HealthBasis, string | null> = {
   fired: 'a tripwire crossed its line',
-  unrecovered: 'crossed recently, and not yet clear of the line',
+  unrecovered: 'it crossed recently and has not cleared the line yet',
   narrowing: 'close to its line, and moving toward it',
-  proximity: 'within one typical move of its line',
+  // "within one typical move" is precise and quietly assumes the reader knows
+  // what a typical move is. This says the same thing as a consequence.
+  proximity: 'close enough that one ordinary move could cross it',
   approaching: null,
   stable: null,
-  nodata: 'nothing could read this',
+  nodata: 'nothing here could read this',
 };
 
 /**
