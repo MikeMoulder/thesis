@@ -3,6 +3,7 @@ import { extractJson } from '../llm/json';
 import { checkDataNeeded } from './decomposer/capabilities';
 import { downgradeUntestable, validateDecomposition } from './decomposer/validate';
 import { summarise, type Assumption, type Decomposition } from './decomposer/types';
+import { summariseBreakers, type BreakerSet } from './breakers/types';
 
 /**
  * The second opinion, on a different model family.
@@ -263,4 +264,48 @@ export function merge(d: Decomposition, result: ChallengeResult): Decomposition 
   if (result.added.length === 0) return d;
   const assumptions = [...d.assumptions, ...result.added];
   return { ...d, assumptions, summary: summarise(d.claims, assumptions) };
+}
+
+
+/**
+ * Fold a second breaker set into the first.
+ *
+ * The challenge now lands after the main tripwires have been generated and
+ * evaluated, so its additions get their own small generation pass and have to
+ * be merged in rather than produced together.
+ *
+ * ⚠ The additions are RENUMBERED. A separate generation call starts counting
+ * at B1 again, so pasting the two lists together would produce two breakers
+ * called B1, and every evaluation is keyed by breaker id. The base set keeps
+ * its ids untouched, which matters because its evaluations have already been
+ * emitted and are on screen.
+ *
+ * The summary is recomputed rather than added up: it counts cadences and
+ * uncovered high-load assumptions, and both change when a set grows.
+ */
+export function mergeBreakers(
+  base: BreakerSet,
+  extra: BreakerSet,
+  assumptions: Assumption[],
+): BreakerSet {
+  if (extra.breakers.length === 0 && extra.uncovered.length === 0) return base;
+
+  const renumbered = extra.breakers.map((breaker, i) => ({
+    ...breaker,
+    id: `B${base.breakers.length + i + 1}`,
+  }));
+  const breakers = [...base.breakers, ...renumbered];
+  const uncovered = [...base.uncovered, ...extra.uncovered];
+
+  return {
+    ...base,
+    breakers,
+    uncovered,
+    summary: summariseBreakers(breakers, uncovered, assumptions),
+    meta: {
+      model: base.meta.model,
+      latencyMs: base.meta.latencyMs + extra.meta.latencyMs,
+      generatedAt: new Date().toISOString(),
+    },
+  };
 }

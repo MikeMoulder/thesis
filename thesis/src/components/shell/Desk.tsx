@@ -36,7 +36,15 @@ import type { ThesisSummary } from '@/thesis/types';
  * "this is structured analysis you can act on".
  */
 
-const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'challenge', 'breakers', 'evaluate'];
+/*
+  The second opinion sits LAST because that is when it now finishes.
+
+  It starts immediately after decompose and runs alongside the tripwires, so
+  the run no longer waits on it. Showing it third would put a step that
+  completes after everything else in the middle of the row, and a progress
+  indicator that finishes out of order reads as a bug.
+*/
+const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'breakers', 'evaluate', 'challenge'];
 const STAGE_LABEL: Record<RunStageId, string> = {
   resolve: 'resolve',
   decompose: 'decompose',
@@ -51,7 +59,7 @@ const STAGE_NARRATION: Record<RunStageId, string> = {
   decompose:
     'Reading your thesis for everything it assumes, including the parts you did not say out loud.',
   challenge:
-    'Handing the list to a second model from a different family, to look for the assumptions the first one missed.',
+    'A second model from a different family is reading the same thesis alongside this, looking for assumptions the first one missed. It does not hold anything up.',
   breakers:
     'Working out which of those assumptions can actually be checked, and what number would prove each one wrong.',
   evaluate: 'Reading the latest filings and live prices to see where each one stands right now.',
@@ -320,8 +328,32 @@ export function Desk({
           }));
           return;
         }
+        /*
+          The composer is released as soon as the MAIN result is complete,
+          not when the stream closes.
+
+          The second opinion runs alongside the tripwires and can take another
+          forty seconds to answer or to give up. Holding the input until the
+          stream ends would lock the user out of their own finished analysis
+          for that whole time, unable to ask a follow-up or run the stress
+          tests, waiting on a stage that is explicitly optional.
+
+          The stream keeps being read after this: the run stays marked running,
+          the second opinion still shows as in flight, and anything it adds
+          arrives and re-renders normally.
+        */
+        let released = false;
         for await (const event of readEvents(response.body)) {
           patchRun((state) => applyEvent(state, event));
+          if (
+            !released &&
+            event.type === 'stage' &&
+            event.id === 'evaluate' &&
+            event.state === 'done'
+          ) {
+            released = true;
+            setBusy(false);
+          }
         }
       } catch (error) {
         patchRun((state) => ({

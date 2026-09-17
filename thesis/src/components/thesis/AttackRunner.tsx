@@ -29,7 +29,15 @@ import { cn } from '@/lib/utils';
  * Never tune this against local timings.
  */
 
-const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'challenge', 'breakers', 'evaluate'];
+/*
+  The second opinion sits LAST because that is when it now finishes.
+
+  It starts immediately after decompose and runs alongside the tripwires, so
+  the run no longer waits on it. Showing it third would put a step that
+  completes after everything else in the middle of the row, and a progress
+  indicator that finishes out of order reads as a bug.
+*/
+const STAGE_ORDER: RunStageId[] = ['resolve', 'decompose', 'breakers', 'evaluate', 'challenge'];
 
 const STAGE_LABEL: Record<RunStageId, string> = {
   resolve: 'resolve',
@@ -45,7 +53,7 @@ const STAGE_NARRATION: Record<RunStageId, string> = {
   decompose:
     'Reading your thesis for everything it quietly assumes, including the parts you did not say out loud.',
   challenge:
-    'Handing the list to a second model from a different family, to look for the assumptions the first one missed.',
+    'A second model from a different family is reading the same thesis alongside this, looking for assumptions the first one missed. It does not hold anything up.',
   breakers:
     'Working out which of those assumptions can actually be checked, and what number would prove each one wrong.',
   evaluate: 'Reading the latest filings and live prices to see where each one stands right now.',

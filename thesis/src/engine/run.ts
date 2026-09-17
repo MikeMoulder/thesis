@@ -1,7 +1,7 @@
 import { getDataSource } from '../data/index';
 import type { Instrument } from '../data/types';
 import { getRateLimiter, LlmError, QuotaExceededError } from '../llm/index';
-import { challenge, merge, type ChallengeResult } from './challenge';
+import { challenge, merge, mergeBreakers, type ChallengeResult } from './challenge';
 import { decompose } from './decomposer/index';
 import type { Decomposition, ThesisInput } from './decomposer/types';
 import { generateBreakers } from './breakers/index';
@@ -110,34 +110,27 @@ export async function* runAttack(input: ThesisInput): AsyncGenerator<RunEvent> {
   yield { type: 'decomposition', decomposition };
   yield { type: 'stage', id: 'decompose', state: 'done', ms: since() };
 
-  // ---- challenge ----------------------------------------------------------
+  // ---- second opinion, started now and collected at the end ---------------
   /*
-    A second reader, on a different model family, looking for what the first
-    pass missed. It runs BEFORE breakers on purpose: anything it adds is folded
-    into the assumption list, so the generator writes tripwires for it like any
-    other. An addition nothing watches would be decoration.
+    Started here and deliberately NOT awaited.
 
-    This stage cannot fail the run. `challenge` never throws, and a result
-    carrying `skipped` means the user still gets the full decomposition, every
-    breaker and every evaluation. The sponsor gateway's quota is not published
-    and its availability is not ours, so the analysis must not depend on it.
+    It used to block the tripwires, which put the slowest and least reliable
+    dependency in the project directly in front of the result. The sponsor
+    gateway answers in 15 to 42 seconds when it answers at all, and succeeds
+    roughly one run in three, so a full analysis that takes about ten seconds
+    was waiting up to forty-five more for something that usually never arrived.
+
+    So the main path no longer depends on it. Tripwires are generated and
+    evaluated against the first pass, the user has a complete answer at the
+    usual speed, and the second reader lands afterwards as an enrichment. Total
+    wall time becomes the LONGER of the two rather than their sum.
+
+    Anything it adds still gets watched: the additions go through their own
+    small generation pass below, so they arrive with tripwires like every other
+    assumption rather than as commentary.
   */
   yield { type: 'stage', id: 'challenge', state: 'running' };
-  const challenged = await challenge(decomposition);
-  if (challenged.model) models.add(challenged.model);
-  if (challenged.added.length > 0) {
-    decomposition = merge(decomposition, challenged);
-    // Re-emit so the UI replaces the tree rather than showing a stale one.
-    yield { type: 'decomposition', decomposition };
-  }
-  yield { type: 'challenge', challenge: challenged };
-  yield {
-    type: 'stage',
-    id: 'challenge',
-    state: 'done',
-    ms: since(),
-    ...(challenged.skipped ? { detail: `skipped: ${challenged.skipped}` } : {}),
-  };
+  const secondOpinion = challenge(decomposition);
 
   // ---- breakers -----------------------------------------------------------
   yield { type: 'stage', id: 'breakers', state: 'running' };
@@ -148,7 +141,8 @@ export async function* runAttack(input: ThesisInput): AsyncGenerator<RunEvent> {
     yield { type: 'stage', id: 'breakers', state: 'failed', ms: since() };
     yield { type: 'error', ...classify(error) };
     // The decomposition is already delivered and still useful on its own, so
-    // this is a partial result rather than a failed run.
+    // this is a partial result rather than a failed run. `secondOpinion` is
+    // abandoned here; it never rejects, so nothing is left unhandled.
     return;
   }
   models.add(breakerSet.meta.model);
@@ -176,6 +170,58 @@ export async function* runAttack(input: ThesisInput): AsyncGenerator<RunEvent> {
   }
   yield { type: 'evaluations', evaluations };
   yield { type: 'stage', id: 'evaluate', state: 'done', ms: since() };
+
+  // ---- collect the second opinion -----------------------------------------
+  /*
+    The run is already complete and on screen by this point. Everything below
+    can only ADD, and every failure path leaves what is already delivered
+    untouched.
+  */
+  const challenged = await secondOpinion;
+  if (challenged.model) models.add(challenged.model);
+
+  if (challenged.added.length > 0) {
+    decomposition = merge(decomposition, challenged);
+    yield { type: 'decomposition', decomposition };
+
+    try {
+      // A second, small generation pass over the additions ALONE. Passing the
+      // whole merged list would rewrite tripwires the user is already reading
+      // and renumber the ids their evaluations are keyed by.
+      const before = breakerSet.breakers.length;
+      const extra = await generateBreakers({ ...decomposition, assumptions: challenged.added });
+      breakerSet = mergeBreakers(breakerSet, extra, decomposition.assumptions);
+      if (extra.meta.model !== 'none') models.add(extra.meta.model);
+      yield { type: 'breakers', breakerSet };
+
+      for (const breaker of breakerSet.breakers.slice(before)) {
+        try {
+          evaluations.push(await evaluateLive(ds, instrument, breaker));
+        } catch (error) {
+          evaluations.push({
+            breakerId: breaker.id,
+            mode: 'live',
+            status: 'undeterminable',
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      yield { type: 'evaluations', evaluations };
+    } catch {
+      // The additions stay on the assumption tree without tripwires, which is
+      // the same honest state as any assumption nothing can watch. Failing here
+      // must not retract work already delivered.
+    }
+  }
+
+  yield { type: 'challenge', challenge: challenged };
+  yield {
+    type: 'stage',
+    id: 'challenge',
+    state: 'done',
+    ms: since(),
+    ...(challenged.skipped ? { detail: `skipped: ${challenged.skipped}` } : {}),
+  };
 
   yield {
     type: 'done',
