@@ -52,6 +52,21 @@ function near(a: number | undefined, b: number | undefined, tolerance = 0.01): b
   return Math.abs(a - b) <= tolerance;
 }
 
+/**
+ * The text of one caveat, by id.
+ *
+ * Asserting on the id rather than on a phrase means the copy can be reworded
+ * without silently turning an assertion into a no-op, which is what a
+ * `.some(c => c.includes('...'))` becomes the moment the sentence changes.
+ */
+function caveat(signal: { caveats: Array<{ id: string; text: string }> }, id: string): string {
+  return signal.caveats.find((c) => c.id === id)?.text ?? '';
+}
+
+function hasCaveat(signal: { caveats: Array<{ id: string }> }, id: string): boolean {
+  return signal.caveats.some((c) => c.id === id);
+}
+
 function breaker(
   id: string,
   metric: Metric,
@@ -206,8 +221,8 @@ function noLevel(): void {
   check('there is no nearest level', signal.nearest === null);
   check(
     'the refusal is stated as a caveat',
-    signal.caveats.some((c) => c.includes('no level at which your own reasoning says')),
-    signal.caveats.join(' | '),
+    hasCaveat(signal, 'no-price-level'),
+    signal.caveats.map((c) => c.id).join(', '),
   );
   check(
     'the headline says so rather than printing a number',
@@ -368,12 +383,12 @@ function grammar(): void {
   console.log('\ncopy: it has to read like a sentence');
 
   const one = deriveSignal(input({ breakerSet: set([breaker('B1', 'price', '<', 180)], ['A4']) }));
-  const singular = one.caveats.find((c) => c.includes('load-bearing')) ?? '';
+  const singular = caveat(one, 'unwatched-assumptions');
   check('one unwatched assumption reads as singular', singular.includes('has no tripwire'), singular);
   check('and refers to it, not them', singular.includes('cannot see it.'), singular);
 
   const two = deriveSignal(input({ breakerSet: set([breaker('B1', 'price', '<', 180)], ['A4', 'A5']) }));
-  const plural = two.caveats.find((c) => c.includes('load-bearing')) ?? '';
+  const plural = caveat(two, 'unwatched-assumptions');
   check('two unwatched assumptions read as plural', plural.includes('have no tripwire'), plural);
   check('and refer to them', plural.includes('cannot see them.'), plural);
 }
@@ -434,7 +449,7 @@ function sides(): void {
 
   const noPrice = deriveSignal(input({ price: null, breakerSet: set([breaker('B1', 'price', '<', 180)]) }));
   check('no price means no levels', noPrice.levels.length === 0);
-  check('no price is called out', noPrice.caveats.some((c) => c.includes('No live price')));
+  check('no price is called out', hasCaveat(noPrice, 'no-price'));
 }
 
 function monitoring(): void {
@@ -446,8 +461,9 @@ function monitoring(): void {
   check('a filing-only thesis reports zero continuous', quiet.monitorability.continuous === 0);
   check(
     'it warns nothing can change between filings',
-    quiet.caveats.some((c) => c.includes('between filings')),
-    quiet.caveats.join(' | '),
+    hasCaveat(quiet, 'nothing-continuous') &&
+      caveat(quiet, 'nothing-continuous').includes('between filings'),
+    caveat(quiet, 'nothing-continuous'),
   );
 
   const blind = deriveSignal(input({ breakerSet: set([breaker('B1', 'price', '<', 180)], ['A4', 'A5']) }));
@@ -457,7 +473,7 @@ function monitoring(): void {
   );
   check(
     'and the signal admits it cannot see them',
-    blind.caveats.some((c) => c.includes('cannot see them')),
+    caveat(blind, 'unwatched-assumptions').includes('cannot see them'),
   );
 }
 
@@ -468,9 +484,28 @@ function discipline(): void {
 
   check('no model call is ever made', signal.meta.modelCalls === 0);
   check('the caveat list is never empty', signal.caveats.length > 0);
+
+  /*
+    Ids exist so a surface that has already made a point in full can drop the
+    duplicate. The panel does exactly that, keyed on these ids, so a caveat
+    emitted without one or with the wrong one would silently print twice.
+  */
+  check(
+    'every caveat carries an id',
+    signal.caveats.every((c) => typeof c.id === 'string' && c.id.length > 0),
+  );
+  check(
+    'every caveat carries text',
+    signal.caveats.every((c) => typeof c.text === 'string' && c.text.length > 10),
+  );
+  check(
+    'no caveat id appears twice',
+    new Set(signal.caveats.map((c) => c.id)).size === signal.caveats.length,
+    signal.caveats.map((c) => c.id).join(', '),
+  );
   check(
     'it always says it is not advice',
-    signal.caveats.some((c) => c.includes('Research, not advice')),
+    caveat(signal, 'not-advice').includes('Research, not advice'),
   );
 
   // Every level must show its working. A price with no derivation beside it is

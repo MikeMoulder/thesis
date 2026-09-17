@@ -98,6 +98,35 @@ export interface RiskToInvalidation {
   riskUsdAtMaxSize?: number;
 }
 
+/**
+ * A stated limit, carrying an id so a renderer can tell which one it is.
+ *
+ * Plain strings were the first shape and they forced the panel to either
+ * repeat itself or match on prose. The no-price-level case was printed three
+ * times on one screen in three slightly different wordings: once in the
+ * headline, once in the section that explains it, and once here. A reader
+ * counts that as padding, and the third copy makes the first two look less
+ * certain rather than more.
+ *
+ * An id lets a surface that has already made a point in full drop the
+ * duplicate, while an API consumer reading only this list still gets
+ * everything.
+ */
+export type CaveatId =
+  | 'not-listed'
+  | 'no-price'
+  | 'no-price-level'
+  | 'moving-level'
+  | 'empty-book'
+  | 'nothing-continuous'
+  | 'unwatched-assumptions'
+  | 'not-advice';
+
+export interface Caveat {
+  id: CaveatId;
+  text: string;
+}
+
 export interface Monitorability {
   continuous: number;
   periodic: number;
@@ -121,7 +150,7 @@ export interface DerivedSignal {
   size: SizeCap | null;
   monitorability: Monitorability;
   /** Everything that stops this being a recommendation. Never empty. */
-  caveats: string[];
+  caveats: Caveat[];
   meta: { modelCalls: 0; derivedAt: string };
 }
 
@@ -361,18 +390,21 @@ export function deriveSignal(input: SignalInput): DerivedSignal {
   // limits reads as a recommendation, and this product does not issue those.
   // -------------------------------------------------------------------------
 
-  const caveats: string[] = [];
+  const caveats: Caveat[] = [];
+  const say = (id: CaveatId, text: string) => caveats.push({ id, text });
 
   if (!input.rTokenSymbol) {
-    caveats.push(
+    say(
+      'not-listed',
       `${input.ticker} has no rToken listed on Bitget, so nothing here can be traded on this venue.`,
     );
   }
   if (input.price === null) {
-    caveats.push('No live price could be read, so no level below is anchored to anything.');
+    say('no-price', 'No live price could be read, so no level below is anchored to anything.');
   }
   if (levels.length === 0 && input.price !== null) {
-    caveats.push(
+    say(
+      'no-price-level',
       'Not one tripwire on this thesis implies a price. Every one is fundamental or ' +
         'valuation based, which means there is no level at which your own reasoning says ' +
         'you are wrong. Any stop placed here would be a number you invented rather than ' +
@@ -380,26 +412,28 @@ export function deriveSignal(input: SignalInput): DerivedSignal {
     );
   }
   if (levels.some((l) => l.stability !== 'fixed')) {
-    caveats.push(
+    say(
+      'moving-level',
       'At least one level below is anchored to a moving reference and is only true as of ' +
         'this reading. Recompute it before acting on it tomorrow.',
     );
   }
   if (size?.maxNotionalUsd === 0) {
-    caveats.push('The book is empty on the bid. This position could be opened and not closed.');
+    say('empty-book', 'The book is empty on the bid. This position could be opened and not closed.');
   }
   if (monitorability.continuous === 0) {
-    caveats.push(monitorability.note);
+    say('nothing-continuous', monitorability.note);
   }
   if (monitorability.uncoveredHighLoad > 0) {
     const n = monitorability.uncoveredHighLoad;
-    caveats.push(
+    say(
+      'unwatched-assumptions',
       n === 1
         ? 'One load-bearing assumption on this thesis has no tripwire at all, so this signal cannot see it.'
         : `${n} load-bearing assumptions on this thesis have no tripwire at all, so this signal cannot see them.`,
     );
   }
-  caveats.push('Derived from this thesis, not from a view on the market. Research, not advice.');
+  say('not-advice', 'Derived from this thesis, not from a view on the market. Research, not advice.');
 
   // -------------------------------------------------------------------------
 

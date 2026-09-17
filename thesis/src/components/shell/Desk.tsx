@@ -12,6 +12,7 @@ import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
 import { ResearchBrief } from '@/components/thesis/ResearchBrief';
+import { SignalPanel } from '@/components/thesis/SignalPanel';
 import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
@@ -19,6 +20,7 @@ import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
 import { DotPattern } from '@/components/ui/DotPattern';
 import { deriveActions } from '@/engine/actions';
 import { deriveBrief } from '@/engine/brief';
+import type { DerivedSignal } from '@/engine/signal';
 import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
@@ -81,6 +83,7 @@ type Turn =
       skipped: StressSkip[];
       current: Partial<Record<Metric, number>>;
     }
+  | { kind: 'signal'; id: string; ticker: string; signal: DerivedSignal }
   | { kind: 'answer'; id: string; text: string }
   | { kind: 'note'; id: string; text: string; tone: 'trust' | 'faint' };
 
@@ -192,8 +195,20 @@ const THESIS_EXAMPLES: Array<{ label: string; prompt: string }> = [
 */
 export const STRESS_CHIP = 'Run the preset stress tests';
 
+/*
+  Offered second, after the stress tests and before the typed questions.
+
+  The order is the order the questions are useful in. "What breaks this" comes
+  before "what would I actually do about it", and a signal derived from a
+  thesis nobody has stress tested yet is a trade sized against untested
+  reasoning. It sits above the free-text prompts because, like the presets, it
+  is a thing the desk already knows how to answer without being asked well.
+*/
+export const SIGNAL_CHIP = 'Derive a possible signal';
+
 const FOLLOWUP_CHIPS = [
   STRESS_CHIP,
+  SIGNAL_CHIP,
   'What if gross margin falls to 62%?',
   'Why is that untestable?',
   'Which tripwire is closest to firing?',
@@ -430,6 +445,65 @@ export function Desk({
     [addTurn],
   );
 
+  // ---- derive a signal ----------------------------------------------------
+
+  /*
+    Its own call rather than a branch of followUp, for the same reason the
+    stress presets are: it is not a question. There is no text to parse and no
+    model to call. The route re-reads price and depth at the moment it is
+    asked, because a stop level derived from a twenty minute old price is a
+    wrong stop stated to two decimal places.
+  */
+  const deriveSignalTurn = useCallback(
+    async (session: Session) => {
+      const run = session.turns.find((t): t is Extract<Turn, { kind: 'run' }> => t.kind === 'run');
+      if (!run?.state.breakerSet) return;
+
+      addTurn(session.id, { kind: 'ask', id: uid(), text: SIGNAL_CHIP });
+      setBusy(true);
+      try {
+        const response = await fetch('/api/signal', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            ticker: session.ticker,
+            // The desk has no direction field yet, and a thesis written as a
+            // reason to own something is long. Stated here rather than
+            // silently defaulted inside the engine.
+            direction: 'bullish',
+            breakerSet: run.state.breakerSet,
+          }),
+        });
+        const data = (await response.json()) as DerivedSignal & { error?: string };
+        if (!response.ok || data.error) {
+          addTurn(session.id, {
+            kind: 'note',
+            id: uid(),
+            tone: 'trust',
+            text: data.error ?? 'No signal could be derived from this thesis.',
+          });
+          return;
+        }
+        addTurn(session.id, {
+          kind: 'signal',
+          id: uid(),
+          ticker: session.ticker,
+          signal: data,
+        });
+      } catch (error) {
+        addTurn(session.id, {
+          kind: 'note',
+          id: uid(),
+          tone: 'trust',
+          text: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [addTurn],
+  );
+
   // ---- follow up on the active session ------------------------------------
 
   const followUp = useCallback(
@@ -522,6 +596,10 @@ export function Desk({
           void runStress(active);
           return;
         }
+        if (message === SIGNAL_CHIP) {
+          void deriveSignalTurn(active);
+          return;
+        }
         void followUp(active, message);
         return;
       }
@@ -540,7 +618,7 @@ export function Desk({
       }
       void startRun(ticker, message);
     },
-    [active, busy, followUp, pendingThesis, runStress, startRun],
+    [active, busy, deriveSignalTurn, followUp, pendingThesis, runStress, startRun],
   );
 
   const summaries: SessionSummary[] = sessions.map((s) => ({
@@ -741,6 +819,14 @@ function TurnView({ turn }: { turn: Turn }) {
           skipped={turn.skipped}
           current={turn.current}
         />
+      </AnalysisBlock>
+    );
+  }
+
+  if (turn.kind === 'signal') {
+    return (
+      <AnalysisBlock kind="signal" subject={turn.ticker} meta={{ modelCalls: 0, latencyMs: 0 }}>
+        <SignalPanel signal={turn.signal} />
       </AnalysisBlock>
     );
   }
