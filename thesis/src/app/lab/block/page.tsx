@@ -1,3 +1,4 @@
+import { LabEyebrow } from '@/app/lab/LabEyebrow';
 import {
   AnalysisBlock,
   BlockSection,
@@ -36,7 +37,7 @@ export default function BlockLabPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-meta uppercase tracking-[0.14em] text-faint">Component lab</p>
+      <LabEyebrow />
       <h1 className="mt-1 text-xl font-medium">Analysis block</h1>
       <Prose className="mt-2 text-sm">
         Three turns of a thread. The third is the point:{' '}

@@ -1,3 +1,4 @@
+import { LabEyebrow } from '@/app/lab/LabEyebrow';
 import { BaseRateChart } from '@/components/thesis/BaseRateChart';
 import { Code, Prose, Term, Value } from '@/components/prose/emphasis';
 import type { HistoricalEvidence } from '@/engine/breakers/evaluate';
@@ -40,7 +41,7 @@ const B3: ThesisBreaker = {
 export default function BaseRateLabPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-meta uppercase tracking-[0.14em] text-faint">Component lab</p>
+      <LabEyebrow />
       <h1 className="mt-1 text-xl font-medium">Base rates</h1>
       <Prose className="mt-2 text-sm">
         <Value>26</Value> prior occurrences sounds like a warning.{' '}

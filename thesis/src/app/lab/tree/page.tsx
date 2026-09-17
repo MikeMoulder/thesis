@@ -1,3 +1,4 @@
+import { LabEyebrow } from '@/app/lab/LabEyebrow';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { Prose, Term, Value } from '@/components/prose/emphasis';
 import { NVDA_BREAKERS, NVDA_DECOMPOSITION } from '@/lib/fixtures/nvda';
@@ -7,7 +8,7 @@ export default function TreeLabPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-meta uppercase tracking-[0.14em] text-faint">Component lab</p>
+      <LabEyebrow />
       <h1 className="mt-1 text-xl font-medium">Assumption tree</h1>
       <Prose className="mt-2 text-sm">
         The product&rsquo;s argument, made before anyone reads a word. Amber nodes are dead ends —{' '}

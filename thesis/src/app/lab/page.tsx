@@ -1,3 +1,4 @@
+import { LabEyebrow } from '@/app/lab/LabEyebrow';
 import { CitationChip } from '@/components/evidence/CitationChip';
 import { Metric, Prose, Term, Value, Warn } from '@/components/prose/emphasis';
 import type { Provenance } from '@/data/types';
@@ -110,7 +111,7 @@ function Section({
 export default function LabPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-meta uppercase tracking-[0.14em] text-faint">Component lab</p>
+      <LabEyebrow />
       <h1 className="mt-1 text-xl font-medium">Citation chip</h1>
       <p className="mt-2 max-w-prose text-sm text-muted">
         Every figure in THESIS carries one. Two icons: how far to trust the number, and what kind of
