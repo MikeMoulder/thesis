@@ -41,6 +41,19 @@ export type Testability =
   | 'fundamental'
   /** Price, volatility, correlation, relative performance. Moves continuously. */
   | 'price'
+  /**
+   * What the market is currently PAYING for the business: price to earnings,
+   * price to sales, market value, earnings yield.
+   *
+   * Its own category rather than a kind of `price`, because the two answer
+   * different questions. Price tells you what the shares cost. Valuation tells
+   * you what that price implies about the business, which is the question
+   * behind every "is this already priced in?" assumption.
+   *
+   * Moves continuously: the price moves every second even though the earnings
+   * underneath it change four times a year.
+   */
+  | 'valuation'
   /** Discrete events: guidance, announcements, analyst actions, macro prints. */
   | 'event'
   /** No available data can test this. A real and important answer. */
@@ -50,6 +63,7 @@ export type Testability =
 export const TESTABILITY_CADENCE: Record<Testability, 'periodic' | 'continuous' | 'event' | null> = {
   fundamental: 'periodic',
   price: 'continuous',
+  valuation: 'continuous',
   event: 'event',
   none: null,
 };

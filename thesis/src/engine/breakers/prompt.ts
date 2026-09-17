@@ -1,5 +1,10 @@
 import type { Decomposition } from '../decomposer/types';
-import { FUNDAMENTAL_METRICS, METRIC_SEMANTICS, PRICE_METRICS } from './types';
+import {
+  FUNDAMENTAL_METRICS,
+  METRIC_SEMANTICS,
+  PRICE_METRICS,
+  VALUATION_METRICS,
+} from './types';
 
 /**
  * The generator turns assumptions into evaluable conditions.
@@ -46,6 +51,10 @@ ${FUNDAMENTAL_METRICS.map((m) => `  ${m}`).join('\n')}
 Price metrics (from market data, updated continuously):
 ${PRICE_METRICS.map((m) => `  ${m}`).join('\n')}
 
+Valuation metrics (price meeting filings, updated continuously). A claim about
+the shares being cheap, expensive, or already re-rated belongs here:
+${VALUATION_METRICS.map((m) => `  ${m}`).join('\n')}
+
 ### Units and signs — get these exactly right
 
 A threshold written against the wrong convention produces a breaker that can
@@ -55,7 +64,7 @@ reading the output, so there is no second chance to catch it.
 ${METRIC_REFERENCE}
 
 Cadence is determined by the metric: fundamental metrics are "periodic", price
-metrics are "continuous". Do not mark a fundamental metric continuous — filings
+and valuation metrics are "continuous". Do not mark a fundamental metric continuous — filings
 do not update daily.
 
 ### event — a discrete thing happens

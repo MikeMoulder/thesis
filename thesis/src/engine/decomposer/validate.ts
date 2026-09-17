@@ -11,7 +11,7 @@ import { checkDataNeeded } from './capabilities';
  * far more repairable than a generic type error.
  */
 
-const TESTABILITY: readonly Testability[] = ['fundamental', 'price', 'event', 'none'];
+const TESTABILITY: readonly Testability[] = ['fundamental', 'price', 'valuation', 'event', 'none'];
 const LOAD_BEARING = ['high', 'medium', 'low'] as const;
 const ORIGIN = ['stated', 'implicit'] as const;
 const DIRECTION = ['bullish', 'bearish', 'neutral'] as const;
