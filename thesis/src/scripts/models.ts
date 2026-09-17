@@ -53,7 +53,8 @@ async function main(): Promise<void> {
   rule('daily quota used');
 
   // Seats per model, so "runs left" reflects what each model actually costs
-  // per run — the judge is one call, the volume model is five.
+  // per run. Gemini carries the decomposer, which is two calls, and Qwen
+  // carries one.
   const callsPerRun = new Map<string, number>();
   for (const s of describeSeats()) {
     callsPerRun.set(s.model, (callsPerRun.get(s.model) ?? 0) + 1);
@@ -94,7 +95,7 @@ async function main(): Promise<void> {
         const tag = m.includes('lite') ? '  ← high RPD, use for volume seats' : '';
         console.log(`    ${m}${tag}`);
       }
-      console.log('\n  Put the ids you want in .env as GEMINI_VOLUME_MODEL / GEMINI_JUDGE_MODEL.');
+      console.log('\n  Put the id you want in .env as GEMINI_VOLUME_MODEL.');
     } catch (err) {
       console.log(`  Could not list models: ${(err as Error).message}`);
     }
