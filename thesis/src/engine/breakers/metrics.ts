@@ -63,10 +63,32 @@ export function isLiquidity(metric: Metric): metric is LiquidityMetric {
  * liquidity question is either zero or unanswerable anyway.
  */
 function referencePrice(book: OrderBook): number | null {
-  const ask = book.asks[0]?.price;
-  const bid = book.bids[0]?.price;
+  const ask = bestAsk(book);
+  const bid = bestBid(book);
   if (ask != null && bid != null) return (ask + bid) / 2;
   return bid ?? null;
+}
+
+/*
+  Best price is derived, not read off the top of the array.
+
+  The provider sorts before returning, and the OrderBook contract says so, but
+  this function is exported and pure: anything can hand it a book. Trusting
+  position 0 would make a mis-ordered book produce 104 basis points of spread
+  where the truth is 10, and nothing downstream could tell the difference
+  because both are numbers a real instrument could print. Deriving costs one
+  pass and removes the failure mode entirely.
+*/
+function bestAsk(book: OrderBook): number | null {
+  let best: number | null = null;
+  for (const level of book.asks) if (best === null || level.price < best) best = level.price;
+  return best;
+}
+
+function bestBid(book: OrderBook): number | null {
+  let best: number | null = null;
+  for (const level of book.bids) if (best === null || level.price > best) best = level.price;
+  return best;
 }
 
 /**
@@ -86,10 +108,9 @@ function referencePrice(book: OrderBook): number | null {
  *                    than any number this could return.
  */
 export function computeLiquidityMetric(book: OrderBook, metric: LiquidityMetric): number | null {
-  const ask = book.asks[0]?.price;
-  const bid = book.bids[0]?.price;
-
   if (metric === 'spreadBps') {
+    const ask = bestAsk(book);
+    const bid = bestBid(book);
     if (ask == null || bid == null) return null;
     const mid = (ask + bid) / 2;
     if (mid <= 0) return null;
@@ -111,7 +132,10 @@ export function computeLiquidityMetric(book: OrderBook, metric: LiquidityMetric)
   let remaining = EXIT_REFERENCE_NOTIONAL_USD;
   let tokensSold = 0;
   let proceeds = 0;
-  for (const level of book.bids) {
+  // Highest bids first, for the same reason best price is derived: a walk down
+  // an unsorted book fills at the wrong levels and still returns a number.
+  const bidsByPrice = [...book.bids].sort((x, y) => y.price - x.price);
+  for (const level of bidsByPrice) {
     const available = level.price * level.size;
     const take = Math.min(remaining, available);
     tokensSold += take / level.price;
