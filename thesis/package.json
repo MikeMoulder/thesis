@@ -19,7 +19,7 @@
     "models": "tsx src/scripts/models.ts",
     "attack": "tsx src/scripts/attack.ts",
     "breakers:selftest": "tsx src/scripts/breakers-selftest.ts",
-    "test": "npm run decompose:selftest && npm run breakers:selftest && npm run actions:selftest && npm run scenario:selftest && npm run thesis:selftest && npm run backfill:selftest && npm run brief:selftest && npm run valuation:selftest && npm run liquidity:selftest && npm run signal:selftest && npm run stress:selftest && npm run challenge:selftest && npm run activity:selftest && npm run autopsy:selftest && npm run telegram:selftest",
+    "test": "npm run decompose:selftest && npm run breakers:selftest && npm run actions:selftest && npm run scenario:selftest && npm run thesis:selftest && npm run backfill:selftest && npm run brief:selftest && npm run valuation:selftest && npm run liquidity:selftest && npm run signal:selftest && npm run stress:selftest && npm run challenge:selftest && npm run activity:selftest && npm run autopsy:selftest && npm run telegram:selftest && npm run derive:selftest",
     "evaluate": "tsx src/scripts/evaluate-demo.ts",
     "actions:selftest": "tsx src/scripts/actions-selftest.ts",
     "snapshot:history": "tsx src/scripts/snapshot-history.ts",
@@ -40,7 +40,8 @@
     "cron:check": "tsx src/scripts/cron-check.ts",
     "tg:check": "tsx src/scripts/tg-check.ts",
     "telegram:selftest": "tsx src/scripts/telegram-selftest.ts",
-    "tg:webhook": "tsx src/scripts/tg-webhook.ts"
+    "tg:webhook": "tsx src/scripts/tg-webhook.ts",
+    "derive:selftest": "tsx src/scripts/derive-selftest.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
