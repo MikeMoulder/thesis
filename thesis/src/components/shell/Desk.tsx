@@ -10,11 +10,13 @@ import { RunHeadline } from '@/components/thesis/RunHeadline';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
+import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
 import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
 import { DotPattern } from '@/components/ui/DotPattern';
 import { deriveActions } from '@/engine/actions';
+import { deriveBrief } from '@/engine/brief';
 import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
@@ -759,7 +761,15 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
             breakerSet={state.breakerSet}
             evaluations={state.evaluations}
           />
-          <BlockSection title="What to do now" tone="lead" className="mt-8">
+          {/* The brief first: what the work established, with the numbers.
+              The actions after it, because an action only makes sense once the
+              reader knows what it is an action ABOUT. */}
+          <BlockSection title="The brief" tone="lead" className="mt-8">
+            <ResearchBrief
+              brief={deriveBrief(state.decomposition, state.breakerSet, state.evaluations)}
+            />
+          </BlockSection>
+          <BlockSection title="What to do now" className="mt-8">
             <NextActions
               actions={deriveActions(state.decomposition, state.breakerSet, state.evaluations)}
             />

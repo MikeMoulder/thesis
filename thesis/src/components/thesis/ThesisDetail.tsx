@@ -2,9 +2,11 @@ import Link from 'next/link';
 
 import { BlockSection } from '@/components/thesis/AnalysisBlock';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { TickerMark } from '@/components/thesis/TickerMark';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { formatValue } from '@/engine/breakers/evaluate';
+import { deriveBrief } from '@/engine/brief';
 import { formatRelative, formatStamp, isStale } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import {
@@ -76,7 +78,16 @@ function driverFor(check: Check | null, breakerId: string): HealthDriver | undef
  * change", four times an hour — teaches a reader to skip the one place on the
  * page that will matter on the day something does.
  */
-function LatestChallenge({ check, now }: { check: Check; now: number }) {
+function LatestChallenge({
+  check,
+  now,
+  positionOf,
+}: {
+  check: Check;
+  now: number;
+  /** Where an assumption sits in the tree, so the row can point at it. */
+  positionOf: (assumptionId: string) => number;
+}) {
   if (check.changes.length === 0) return null;
 
   return (
@@ -95,8 +106,14 @@ function LatestChallenge({ check, now }: { check: Check; now: number }) {
         {check.changes.map((change) => (
           <li key={`${change.assumptionId}-${change.to}`}>
             <div className="flex flex-wrap items-baseline gap-x-2.5">
-              <span data-figure className="text-sm text-faint">
-                {change.assumptionId}
+              {/* The numbered line from the tree, not the engine's id. "A6"
+                  survived here after the identifiers were removed elsewhere. */}
+              <span className="text-sm text-faint">
+                {positionOf(change.assumptionId) > 0 ? (
+                  <>
+                    number <span data-figure>{positionOf(change.assumptionId)}</span>
+                  </>
+                ) : null}
               </span>
               <span className={cn('text-meta uppercase tracking-[0.12em]', HEALTH_TEXT[change.from])}>
                 {HEALTH_WORD[change.from]}
@@ -315,7 +332,26 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
       </header>
 
       <div className="pt-8">
-        {lastMovement ? <LatestChallenge check={lastMovement} now={now} /> : null}
+        {lastMovement ? (
+          <LatestChallenge
+            check={lastMovement}
+            now={now}
+            positionOf={(id) =>
+              version.decomposition.assumptions.findIndex((a) => a.id === id) + 1
+            }
+          />
+        ) : null}
+
+        {/* The same closing brief a fresh run produces, built from the latest
+            check rather than from a live evaluation. A stored thesis deserves
+            the same summary as the run that created it. */}
+        {check ? (
+          <BlockSection title="The brief" tone="lead">
+            <ResearchBrief
+              brief={deriveBrief(version.decomposition, version.breakerSet, check.evaluations)}
+            />
+          </BlockSection>
+        ) : null}
 
         <BlockSection title="What this trade is standing on">
           <AssumptionTree

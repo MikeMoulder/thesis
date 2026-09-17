@@ -6,12 +6,14 @@ import { AnalysisBlock, BlockSection, type BlockStage } from '@/components/thesi
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { BaseRateDisclosure } from '@/components/thesis/BaseRateDisclosure';
 import { NextActions } from '@/components/thesis/NextActions';
+import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose, Term } from '@/components/prose/emphasis';
 import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { BreakerSet } from '@/engine/breakers/types';
 import type { Decomposition } from '@/engine/decomposer/types';
 import { deriveActions } from '@/engine/actions';
+import { deriveBrief } from '@/engine/brief';
 import type { ErrorKind, RunEvent, RunStageId } from '@/engine/run';
 import { cn } from '@/lib/utils';
 
@@ -304,15 +306,22 @@ export function AttackRunner() {
             system changing its mind rather than finishing its work.
           */}
           {state.decomposition && !state.running ? (
-            <BlockSection title="What to do now">
-              <NextActions
-                actions={deriveActions(
-                  state.decomposition,
-                  state.breakerSet,
-                  state.evaluations,
-                )}
-              />
-            </BlockSection>
+            <>
+              <BlockSection title="The brief" tone="lead">
+                <ResearchBrief
+                  brief={deriveBrief(state.decomposition, state.breakerSet, state.evaluations)}
+                />
+              </BlockSection>
+              <BlockSection title="What to do now">
+                <NextActions
+                  actions={deriveActions(
+                    state.decomposition,
+                    state.breakerSet,
+                    state.evaluations,
+                  )}
+                />
+              </BlockSection>
+            </>
           ) : null}
         </AnalysisBlock>
       ) : null}
