@@ -118,7 +118,16 @@ export interface ChallengeResult {
   added: Assumption[];
   /** Why each addition was missed, keyed by assumption id. */
   whyMissed: Record<string, string>;
-  /** The model that ran, or null when the stage could not run at all. */
+  /**
+   * The model that ANSWERED, or null when nothing did.
+   *
+   * ⚠ Null on every failure path, including a timeout. A seat that was asked
+   * and did not reply has not contributed, and run.ts folds this straight into
+   * the list of models a run reports to the user. Naming a model there because
+   * it was configured rather than because it answered puts a sponsor's name
+   * under an analysis it had no part in. The skipped message below still names
+   * it, which is where a debugger should look.
+   */
   model: string | null;
   latencyMs: number;
   /** Set when the challenge did not run. The analysis is still complete. */
@@ -279,10 +288,12 @@ export async function challenge(d: Decomposition): Promise<ChallengeResult> {
 
     return { added, whyMissed, model: llm.model, latencyMs: Date.now() - started };
   } catch (err) {
+    // model is null, not llm.model. See the field's own note: this seat was
+    // asked and did not answer, so it did not run. The message names it.
     return {
       added: [],
       whyMissed: {},
-      model: llm.model,
+      model: null,
       latencyMs: Date.now() - started,
       skipped: (err as Error).message,
     };
