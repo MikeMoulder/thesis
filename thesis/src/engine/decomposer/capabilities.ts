@@ -41,6 +41,46 @@ function declaresProxy(text: string): boolean {
 }
 
 /**
+ * Is the unavailable thing being DISCLAIMED rather than relied on?
+ *
+ * These rules exist to catch a model quietly testing an assumption with data we
+ * do not hold. They were also firing on the exact opposite behaviour: text that
+ * names the missing data precisely in order to say it is NOT being used.
+ *
+ * Observed live, and it is what held this whole capability back. Asked about AMD
+ * being mispriced, the decomposer correctly proposed trailing price to earnings
+ * and then wrote:
+ *
+ *   "...this measures current valuation multiples RATHER THAN market
+ *    expectations or forward multiples, WHICH IS NOT AVAILABLE to this system"
+ *
+ * That is precisely the honest phrasing this product asks for everywhere else.
+ * It matched the forward-multiple rule, counted as a violation, and the
+ * assumption came back marked untestable with its own correct reasoning sitting
+ * unused in the gap field. **Punishing a disclaimer teaches the model to stop
+ * disclaiming**, which is the last thing this system wants.
+ *
+ * Scoped to the CLAUSE containing the match, so a disclaimer in one half of a
+ * sentence cannot excuse genuine reliance in the other half. Only two markers
+ * count, both unambiguous: an explicit contrast, or an explicit statement that
+ * the thing is not available.
+ */
+function disclaims(text: string, index: number): boolean {
+  const clauseStart = Math.max(
+    text.lastIndexOf(';', index),
+    text.lastIndexOf(',', index),
+    text.lastIndexOf('.', index),
+  );
+  const rest = text.slice(index).search(/[;.]/);
+  const clauseEnd = rest === -1 ? text.length : index + rest;
+  const clause = text.slice(clauseStart + 1, clauseEnd);
+
+  const contrasts = /\b(rather than|instead of|as opposed to|not just)\b/i.test(clause);
+  const declaredMissing = /\b(not available|unavailable|not accessible|we do not have)\b/i.test(clause);
+  return contrasts || declaredMissing;
+}
+
+/**
  * Note what is deliberately NOT here: "forward guidance" and "guidance" are
  * legitimate — guidance is announced publicly and is testable as an `event`.
  * Only forward *estimates produced by third parties* are unavailable.
@@ -110,7 +150,10 @@ export function checkDataNeeded(dataNeeded: string): CapabilityViolation[] {
   for (const rule of RULES) {
     if (rule.allowIfProxy && proxied) continue;
     const hit = rule.pattern.exec(dataNeeded);
-    if (hit) violations.push({ matched: hit[0], reason: rule.reason });
+    if (!hit) continue;
+    // Naming the missing thing in order to rule it OUT is honest, not a breach.
+    if (disclaims(dataNeeded, hit.index)) continue;
+    violations.push({ matched: hit[0], reason: rule.reason });
   }
   return violations;
 }

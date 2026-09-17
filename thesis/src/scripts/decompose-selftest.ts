@@ -207,6 +207,33 @@ async function main(): Promise<void> {
   check('catches explicit segment wording', checkDataNeeded('segment revenue breakdown').length > 0);
   check('catches backlog', checkDataNeeded('order book and backlog trends').length > 0);
 
+  /*
+    Naming the missing data in order to RULE IT OUT is honest and must not count
+    as a violation. This fired live: the decomposer proposed trailing valuation
+    for an "already priced in" assumption, disclaimed forward multiples in the
+    same breath, was flagged, and downgraded its own correct answer to
+    untestable. Punishing a disclaimer teaches the model to stop disclaiming.
+  */
+  check(
+    'a disclaimed forward multiple is allowed',
+    checkDataNeeded(
+      'trailing price to earnings compared with its own range; this measures current valuation rather than forward multiples',
+    ).length === 0,
+  );
+  check(
+    'so is naming consensus to say we do not have it',
+    checkDataNeeded('trailing P/E from market price and 10-Q filings; analyst consensus is not available')
+      .length === 0,
+  );
+  check(
+    'but relying on a forward multiple is still caught',
+    checkDataNeeded('forward P/E versus the sector').length > 0,
+  );
+  check(
+    'and a disclaimer in another clause does not excuse it',
+    checkDataNeeded('segment data is not available. forward EPS estimates from the street').length > 0,
+  );
+
   // False positives would be worse than the leak: they would strip real
   // breakers off genuinely testable assumptions.
   check(
