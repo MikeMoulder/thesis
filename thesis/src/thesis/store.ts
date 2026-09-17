@@ -38,7 +38,7 @@ function trim(thesis: ThesisRecord): ThesisRecord {
 // can break a deploy the night before a deadline.
 // ---------------------------------------------------------------------------
 
-interface RedisConfig {
+export interface RedisConfig {
   url: string;
   token: string;
 }
@@ -48,7 +48,7 @@ interface RedisConfig {
  * `KV_REST_API_*`; installing Upstash directly sets `UPSTASH_REDIS_REST_*`.
  * Reading only one of them is a reliable way to lose an afternoon.
  */
-function redisConfig(): RedisConfig | null {
+export function redisConfig(): RedisConfig | null {
   const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
@@ -62,7 +62,7 @@ export class RedisStoreError extends Error {
   }
 }
 
-async function command<T>(config: RedisConfig, cmd: Array<string | number>): Promise<T> {
+export async function command<T>(config: RedisConfig, cmd: Array<string | number>): Promise<T> {
   const response = await fetch(config.url, {
     method: 'POST',
     headers: {
