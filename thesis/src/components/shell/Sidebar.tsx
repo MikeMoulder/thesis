@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PanelLeftClose, Plus, Search } from 'lucide-react';
 
 import type { WatchRow } from '@/app/api/watchlist/route';
+import { TelegramBind } from '@/components/shell/TelegramBind';
 import { TickerMark } from '@/components/thesis/TickerMark';
 import { cn } from '@/lib/utils';
 
@@ -451,7 +452,10 @@ export function Sidebar({
       </div>
 
       {/* Where Orion pins an account row. THESIS has no wallet to show, so this
-          holds the thing a user does need to trust: whether the sources are up. */}
+          holds the two things a user does need to trust: that the sources are
+          up, and that the answer can actually reach them. They are the same
+          question asked from opposite ends, which is why they sit together. */}
+      <TelegramBind />
       <div className="flex items-center gap-2.5 px-3 pt-2">
         <span aria-hidden className={healthDotClass(health)} />
         <span className="text-meta leading-tight text-faint">{healthLabel(health)}</span>
