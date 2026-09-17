@@ -12,6 +12,7 @@ import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
 import { ResearchBrief } from '@/components/thesis/ResearchBrief';
+import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
 import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
@@ -22,6 +23,7 @@ import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
 import { cn } from '@/lib/utils';
+import type { Metric } from '@/engine/breakers/types';
 import type { ThesisSummary } from '@/thesis/types';
 
 /**
@@ -63,6 +65,14 @@ type Turn =
   | { kind: 'ask'; id: string; text: string }
   | { kind: 'run'; id: string; ticker: string; state: RunState }
   | { kind: 'scenario'; id: string; ticker: string; label: string; evaluations: Evaluation[] }
+  | {
+      kind: 'stress';
+      id: string;
+      ticker: string;
+      rows: StressRow[];
+      skipped: StressSkip[];
+      current: Partial<Record<Metric, number>>;
+    }
   | { kind: 'answer'; id: string; text: string }
   | { kind: 'note'; id: string; text: string; tone: 'trust' | 'faint' };
 
@@ -164,7 +174,18 @@ const THESIS_EXAMPLES: Array<{ label: string; prompt: string }> = [
   },
 ];
 
+/*
+  The preset chip leads.
+
+  A free-typed what-if is the better tool once you know what you are worried
+  about, and the person who has just written a thesis is the least able to name
+  the shock that would break it. So the preset set is offered first and the
+  typed one second, which is the order they are useful in.
+*/
+export const STRESS_CHIP = 'Run the preset stress tests';
+
 const FOLLOWUP_CHIPS = [
+  STRESS_CHIP,
   'What if gross margin falls to 62%?',
   'Why is that untestable?',
   'Which tripwire is closest to firing?',
@@ -319,6 +340,64 @@ export function Desk({
     [patchSession],
   );
 
+  // ---- preset stress tests ------------------------------------------------
+
+  /*
+    Its own call rather than a branch of followUp, because it is not a question.
+    followUp routes free text to either the scenario parser or a model; this
+    takes no text at all, costs no model call, and needs the ticker rather than
+    a sentence. Folding it in would mean parsing a phrase we already know.
+  */
+  const runStress = useCallback(
+    async (session: Session) => {
+      const run = session.turns.find((t): t is Extract<Turn, { kind: 'run' }> => t.kind === 'run');
+      if (!run?.state.breakerSet) return;
+
+      addTurn(session.id, { kind: 'ask', id: uid(), text: STRESS_CHIP });
+      setBusy(true);
+      try {
+        const response = await fetch('/api/stress', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ticker: session.ticker, breakerSet: run.state.breakerSet }),
+        });
+        const data = (await response.json()) as {
+          results?: StressRow[];
+          skipped?: StressSkip[];
+          current?: Partial<Record<Metric, number>>;
+          error?: string;
+        };
+        if (!response.ok || !data.results) {
+          addTurn(session.id, {
+            kind: 'note',
+            id: uid(),
+            tone: 'trust',
+            text: data.error ?? 'The stress tests could not be run.',
+          });
+          return;
+        }
+        addTurn(session.id, {
+          kind: 'stress',
+          id: uid(),
+          ticker: session.ticker,
+          rows: data.results,
+          skipped: data.skipped ?? [],
+          current: data.current ?? {},
+        });
+      } catch (error) {
+        addTurn(session.id, {
+          kind: 'note',
+          id: uid(),
+          tone: 'trust',
+          text: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [addTurn],
+  );
+
   // ---- follow up on the active session ------------------------------------
 
   const followUp = useCallback(
@@ -401,6 +480,16 @@ export function Desk({
       }
 
       if (active) {
+        /*
+          Intercepted before followUp, which routes free text to the scenario
+          parser or to a model. The presets are neither: they need no parsing
+          and cost no model call, and letting this phrase fall through would
+          spend a request answering a question we already know the answer to.
+        */
+        if (message === STRESS_CHIP) {
+          void runStress(active);
+          return;
+        }
         void followUp(active, message);
         return;
       }
@@ -419,7 +508,7 @@ export function Desk({
       }
       void startRun(ticker, message);
     },
-    [active, busy, followUp, pendingThesis, startRun],
+    [active, busy, followUp, pendingThesis, runStress, startRun],
   );
 
   const summaries: SessionSummary[] = sessions.map((s) => ({
@@ -609,6 +698,18 @@ function TurnView({ turn }: { turn: Turn }) {
       <p className={cn('max-w-prose text-sm', turn.tone === 'trust' ? 'text-trust' : 'text-faint')}>
         {turn.text}
       </p>
+    );
+  }
+
+  if (turn.kind === 'stress') {
+    return (
+      <AnalysisBlock kind="stress" subject={turn.ticker} meta={{ modelCalls: 0, latencyMs: 0 }}>
+        <StressPanel
+          rows={turn.rows}
+          skipped={turn.skipped}
+          current={turn.current}
+        />
+      </AnalysisBlock>
     );
   }
 

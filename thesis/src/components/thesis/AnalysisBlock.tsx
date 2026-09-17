@@ -19,11 +19,12 @@ import { cn } from '@/lib/utils';
  * meaning "this is a piece of structured analysis you can act on".
  */
 
-export type BlockKind = 'thesis-attacked' | 'scenario' | 'historical' | 'recheck';
+export type BlockKind = 'thesis-attacked' | 'scenario' | 'stress' | 'historical' | 'recheck';
 
 const KIND_LABEL: Record<BlockKind, string> = {
   'thesis-attacked': 'Thesis attacked',
   scenario: 'Scenario',
+  stress: 'Preset stress tests',
   historical: 'When this happened before',
   recheck: 'Re-check',
 };
