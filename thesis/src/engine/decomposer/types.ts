@@ -54,6 +54,19 @@ export type Testability =
    * underneath it change four times a year.
    */
   | 'valuation'
+  /**
+   * Whether the position could actually be entered and exited: spread, resting
+   * depth, the real cost of getting out. Bitget order book.
+   *
+   * Its own category because it tests a different KIND of claim. The others ask
+   * whether the user is right. This asks whether being right would pay, and for
+   * a tokenized equity that is not a formality: half the listed rTokens carry a
+   * live price and real 24 hour volume above a completely empty book.
+   *
+   * Use it for any assumption that depends on GETTING OUT rather than on being
+   * correct: stops, exits, position sizing, "I can cut this if it turns".
+   */
+  | 'liquidity'
   /** Discrete events: guidance, announcements, analyst actions, macro prints. */
   | 'event'
   /** No available data can test this. A real and important answer. */
@@ -64,6 +77,9 @@ export const TESTABILITY_CADENCE: Record<Testability, 'periodic' | 'continuous' 
   fundamental: 'periodic',
   price: 'continuous',
   valuation: 'continuous',
+  // A book can empty out between one check and the next, which is exactly when
+  // it matters, so this is watched continuously rather than periodically.
+  liquidity: 'continuous',
   event: 'event',
   none: null,
 };

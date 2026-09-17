@@ -1,6 +1,7 @@
 import type { Decomposition } from '../decomposer/types';
 import {
   FUNDAMENTAL_METRICS,
+  LIQUIDITY_METRICS,
   METRIC_SEMANTICS,
   PRICE_METRICS,
   VALUATION_METRICS,
@@ -55,6 +56,13 @@ Valuation metrics (price meeting filings, updated continuously). A claim about
 the shares being cheap, expensive, or already re-rated belongs here:
 ${VALUATION_METRICS.map((m) => `  ${m}`).join('\n')}
 
+Liquidity metrics (from the live order book, updated continuously). These test
+whether the position can be CLOSED, not whether the view is right. Use them for
+any assumption about a stop, an exit, or a size. Zero exit depth is a real and
+common reading: an rToken can show a live price and millions of 24h volume with
+nothing at all resting on the bid:
+${LIQUIDITY_METRICS.map((m) => `  ${m}`).join('\n')}
+
 ### Units and signs — get these exactly right
 
 A threshold written against the wrong convention produces a breaker that can
@@ -63,8 +71,8 @@ reading the output, so there is no second chance to catch it.
 
 ${METRIC_REFERENCE}
 
-Cadence is determined by the metric: fundamental metrics are "periodic", price
-and valuation metrics are "continuous". Do not mark a fundamental metric continuous — filings
+Cadence is determined by the metric: fundamental metrics are "periodic", price,
+valuation and liquidity metrics are "continuous". Do not mark a fundamental metric continuous — filings
 do not update daily.
 
 ### event — a discrete thing happens

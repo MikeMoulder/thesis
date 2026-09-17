@@ -110,8 +110,22 @@ const RULES: Rule[] = [
     pattern: /\b(industry|third-?party|broker)\s+(report|research|estimate)s?\b/i,
     reason: 'third-party industry research is not available to this system',
   },
+  /**
+   * "order book" was in this list and has been taken out.
+   *
+   * The phrase is two different things. A company's order book is its unfilled
+   * backlog, which we still cannot see. A market's order book is resting bids
+   * and offers, which we now read from Bitget on every evaluation. Blocking the
+   * string blocked both, and the cost of that is asymmetric: a false block
+   * hides a capability the engine really has and pushes a testable assumption
+   * back into the untestable pile, which is the failure this whole product
+   * exists to prevent.
+   *
+   * `backlog` and `bookings` still catch the company sense, and they are the
+   * words a filing would actually use for it.
+   */
   {
-    pattern: /\b(backlog|bookings|order\s+book|channel\s+check|survey)\b/i,
+    pattern: /\b(backlog|bookings|channel\s+check|survey)\b/i,
     reason: 'backlog, bookings and channel data are not available to this system',
   },
   {

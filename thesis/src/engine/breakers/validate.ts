@@ -3,6 +3,7 @@ import type { Assumption } from '../decomposer/types';
 import { TESTABILITY_CADENCE } from '../decomposer/types';
 import {
   FUNDAMENTAL_METRICS,
+  LIQUIDITY_METRICS,
   PRICE_METRICS,
   VALUATION_METRICS,
   type Cadence,
@@ -18,6 +19,7 @@ const ALL_METRICS = new Set<string>([
   ...FUNDAMENTAL_METRICS,
   ...PRICE_METRICS,
   ...VALUATION_METRICS,
+  ...LIQUIDITY_METRICS,
 ]);
 
 /** Cadence follows from the metric — filings do not update continuously. */

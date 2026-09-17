@@ -89,6 +89,13 @@ exists somewhere in the world — if THIS system can retrieve it.
   Valuation, price meeting filings, updating continuously:
     market value · trailing price to earnings · price to sales · earnings yield
 
+  Tradability, read from the live Bitget order book:
+    the spread · dollars of resting bids within 1% of mid · the real cost of
+    selling 25,000 USD right now. This answers whether a position can be got
+    OUT of, which is a different question from whether the view is correct.
+    Half the listed rTokens show a live price and real 24h volume above a
+    book with NOTHING resting on it.
+
   News and events:
     headlines, company announcements, analyst actions, macro releases
 
@@ -96,9 +103,13 @@ exists somewhere in the world — if THIS system can retrieve it.
 
   analyst consensus or estimates · FORWARD P/E or any forward multiple ·
   price targets · segment or product-line revenue breakouts · market share
-  figures · industry or third-party research reports · order books, backlog or
+  figures · industry or third-party research reports · company backlog or
   bookings · customer or supplier data · management intent · private company
   data · survey or channel-check data
+
+(The MARKET order book — resting bids and offers — IS available and is listed
+above. A COMPANY's order book, meaning its unfilled backlog, is not. They share
+a name and are not the same thing.)
 
 Note the word FORWARD. Trailing valuation is available and forward valuation is
 not. What the market pays today for the last four quarters of earnings is a
@@ -109,7 +120,7 @@ its testability is "none". Do not downgrade it to a loosely related available
 metric and call it tested — that is the single worst error you can make here,
 because it hides a risk the user needed to see.
 
-### The four categories
+### The five categories
 
   "fundamental" — testable with the EDGAR figures above. Updates quarterly.
 
@@ -118,6 +129,12 @@ because it hides a risk the user needed to see.
   "valuation"   — testable with what the market is currently PAYING: trailing
                   price to earnings, price to sales, market value, earnings
                   yield. Updates continuously.
+
+  "liquidity"   — testable against resting depth: can this position actually
+                  be closed, at what spread, at what cost. Use it whenever the
+                  assumption depends on GETTING OUT rather than on being right:
+                  a stop, an exit, a position size, "I can cut this if it
+                  turns". Updates continuously.
 
   "event"       — testable by watching for a discrete occurrence: guidance,
                   an announcement, an analyst action, a macro release.
@@ -148,6 +165,39 @@ Most "priced in" assumptions contain both. Where the measurable half genuinely
 bears on the claim, use "valuation" and say in dataNeeded which half you are
 testing and which half you are not. Where the claim is purely about
 expectations, it is "none".
+
+### "I can get out" — the assumption nobody writes down
+
+Every thesis with a stop, a target, or a stated size is also assuming someone
+will be there to take the other side. Almost nobody says this out loud, which
+makes it exactly the kind of implicit, load-bearing assumption you exist to
+surface.
+
+It is not a formality here. These trade as tokens on an exchange, and the
+exchange lists far more of them than it quotes. Measured on 17 Sep 2026:
+
+  rNVDA   217.74   47.1M of 24h volume   a real book on both sides
+  rNFLX    76.92   12.4M of 24h volume   ZERO bids, ZERO offers
+
+Both show a confident price. Only one of them can be sold. A price and a
+volume describe trades that already happened; they say nothing about whether
+anyone is waiting now.
+
+So when a thesis says any of these:
+
+  "I'm wrong if it drops below X"        a stop that has to fill
+  "I'll cut it if the thesis breaks"     an exit that has to fill
+  "I'm putting 50k into this"            a size the book has to absorb
+
+raise the exit as its OWN assumption, origin "implicit", testability
+"liquidity". Phrase it as the falsifiable claim it is — "the position can be
+closed near the stop rather than at whatever bid happens to exist" — and set
+loadBearing from what rests on it. A stop is the whole risk control of a
+trade, so it is usually high.
+
+Do NOT fold this into the price assumption. "The price falls 30%" and "I can
+sell when it does" are different claims, they fail for different reasons, and
+the second one fails silently.
 
 ### Honest proxies
 
@@ -209,7 +259,7 @@ Return ONLY a JSON object. No prose before or after, no markdown fences.
       "origin": "stated|implicit",
       "supports": ["C1"],
       "loadBearing": "high|medium|low",
-      "testability": "fundamental|price|valuation|event|none",
+      "testability": "fundamental|price|valuation|liquidity|event|none",
       "dataNeeded": "...",
       "rationale": "..."
     }
