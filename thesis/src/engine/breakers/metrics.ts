@@ -3,9 +3,11 @@ import { NoDataError, type Candle, type Instrument, type Provenance } from '../.
 import { knowableFrom } from './evaluate';
 import {
   FUNDAMENTAL_METRICS,
+  VALUATION_METRICS,
   type FundamentalMetric,
   type Metric,
   type PriceMetric,
+  type ValuationMetric,
 } from './types';
 
 /**
@@ -28,6 +30,26 @@ export interface MetricReading {
 
 export function isFundamental(metric: Metric): metric is FundamentalMetric {
   return (FUNDAMENTAL_METRICS as readonly string[]).includes(metric);
+}
+
+export function isValuation(metric: Metric): metric is ValuationMetric {
+  return (VALUATION_METRICS as readonly string[]).includes(metric);
+}
+
+/**
+ * Trailing twelve months: the last four reported quarters, added up.
+ *
+ * A single quarter cannot be compared with a share price. Price is a claim on
+ * the whole future of the business, so the denominator has to be a year, and
+ * four quarters is the year we can actually observe.
+ *
+ * Returns null rather than a part-year sum when fewer than four quarters exist.
+ * Dividing a price by three quarters of earnings would overstate the multiple by
+ * a third and nothing on screen would show it.
+ */
+function trailingTwelveMonths(points: Array<{ value: number }>): number | null {
+  if (points.length < 4) return null;
+  return points.slice(-4).reduce((sum, p) => sum + p.value, 0);
 }
 
 /** Direct XBRL concepts. Ratios go through getDerivedMetric instead. */
@@ -245,6 +267,8 @@ export async function readMetric(
     };
   }
 
+  if (isValuation(metric)) return readValuation(ds, instrument, metric);
+
   const priceMetric = metric as PriceMetric;
 
   // The live quote is the rToken's 7x24 price — the one number that keeps
@@ -290,6 +314,126 @@ export async function readMetric(
       derivation: `${metric} computed from ${series.from} daily closes${
         series.provenance.derivation ? `; ${series.provenance.derivation}` : ''
       }`,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Valuation: price meeting fundamentals
+// ---------------------------------------------------------------------------
+
+/**
+ * What the market is paying for this business today.
+ *
+ * Needs three things that come from three different places: a live price, four
+ * quarters of filed results, and a share count. Because the price is live and
+ * the filings are quarterly, the reading MOVES CONTINUOUSLY even though its
+ * denominator only changes four times a year, which is exactly what makes a
+ * re-rating watchable.
+ *
+ * Provenance says so explicitly. A number built from three sources, one of them
+ * months old, must not be presented as a single clean observation.
+ */
+async function readValuation(
+  ds: DataSource,
+  instrument: Instrument,
+  metric: ValuationMetric,
+): Promise<MetricReading> {
+  const quote = await ds.getQuote(instrument).catch(() => null);
+  const price = quote?.value.last;
+  if (price === undefined || price <= 0) {
+    throw new NoDataError(`No current price available for ${instrument.ticker}`, 'market');
+  }
+
+  const priceSource = quote?.provenance.source ?? 'market';
+  const asOf = quote ? new Date(quote.value.ts).toISOString() : new Date().toISOString();
+
+  if (metric === 'trailingPE' || metric === 'earningsYield') {
+    const eps = await ds.getFundamentalSeries(instrument, 'eps', { limit: 8 });
+    const ttm = trailingTwelveMonths(eps.value);
+    if (ttm === null) {
+      throw new NoDataError(
+        `${instrument.ticker} has fewer than four quarters of earnings per share filed`,
+        'edgar',
+      );
+    }
+
+    if (metric === 'earningsYield') {
+      return {
+        metric,
+        value: (ttm / price) * 100,
+        asOf,
+        provenance: {
+          status: 'inferred',
+          source: `${priceSource} + SEC filings`,
+          confidence: 'high',
+          derivation: `trailing twelve month earnings per share of ${ttm.toFixed(2)} as a percent of a share price of ${price.toFixed(2)}`,
+        },
+      };
+    }
+
+    /*
+      A loss-making company has NO meaningful price to earnings ratio. Dividing
+      by a negative number produces a negative multiple, which reads like a
+      cheap stock and means the opposite. Refusing is the honest answer, and
+      `earningsYield` remains available for exactly this case because a negative
+      yield is meaningful where a negative multiple is not.
+    */
+    if (ttm <= 0) {
+      throw new NoDataError(
+        `${instrument.ticker} lost money over the last four quarters, so it has no meaningful price to earnings ratio. Use earnings yield instead.`,
+        'edgar',
+      );
+    }
+
+    return {
+      metric,
+      value: price / ttm,
+      asOf,
+      provenance: {
+        status: 'inferred',
+        source: `${priceSource} + SEC filings`,
+        confidence: 'high',
+        derivation: `share price of ${price.toFixed(2)} divided by trailing twelve month earnings per share of ${ttm.toFixed(2)}`,
+      },
+    };
+  }
+
+  const shares = await ds.getSharesOutstanding(instrument);
+  const marketCap = price * shares.value;
+
+  if (metric === 'marketCap') {
+    return {
+      metric,
+      value: marketCap,
+      asOf,
+      provenance: {
+        status: 'inferred',
+        source: `${priceSource} + ${shares.provenance.source}`,
+        confidence: 'high',
+        derivation: `share price of ${price.toFixed(2)} times ${(shares.value / 1e9).toFixed(2)} billion shares outstanding`,
+      },
+    };
+  }
+
+  const revenue = await ds.getFundamentalSeries(instrument, 'revenue', { limit: 8 });
+  const ttmRevenue = trailingTwelveMonths(revenue.value);
+  if (ttmRevenue === null || ttmRevenue <= 0) {
+    throw new NoDataError(
+      `${instrument.ticker} has fewer than four quarters of revenue filed`,
+      'edgar',
+    );
+  }
+
+  return {
+    metric,
+    value: marketCap / ttmRevenue,
+    asOf,
+    provenance: {
+      status: 'inferred',
+      source: `${priceSource} + ${shares.provenance.source}`,
+      confidence: 'high',
+      derivation: `market value of ${(marketCap / 1e9).toFixed(1)} billion divided by trailing twelve month revenue of ${(ttmRevenue / 1e9).toFixed(1)} billion`,
     },
   };
 }

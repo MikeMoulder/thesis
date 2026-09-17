@@ -93,6 +93,27 @@ export const METRIC_GLOSSARY: Record<Metric, Definition> = {
     why: 'Always zero or negative. 0% means sitting at the high; −25% means a quarter below it.',
     typical: 'Ordinary shares dip 10–20% regularly. Below −30% is a serious decline.',
   },
+  marketCap: {
+    label: 'market value',
+    short: 'What the whole company costs at the current share price.',
+    why: 'Share price on its own says nothing about size. A $10 share can be a bigger company than a $500 one.',
+  },
+  trailingPE: {
+    label: 'price to earnings',
+    short: 'How many years of current profit you are paying for one share.',
+    why: 'A high number means the market expects growth. That expectation is the thing your thesis is usually betting against.',
+    typical: 'The wider market sits near 20. Fast growers run 30 to 60. Above that, a lot of future is already in the price.',
+  },
+  priceToSales: {
+    label: 'price to sales',
+    short: 'How many years of revenue you are paying for one share.',
+    why: 'Useful where profit is small or negative, which is where price to earnings stops working.',
+  },
+  earningsYield: {
+    label: 'earnings yield',
+    short: 'Last year of profit as a percentage of the share price.',
+    why: 'Price to earnings turned upside down, so it can be compared with a bond yield or a savings rate.',
+  },
   volatility90d: {
     label: 'volatility',
     short: 'How violently the price has been swinging around, as a yearly percentage.',

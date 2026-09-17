@@ -54,6 +54,29 @@ export type PriceMetric =
   | 'volatility90d';
 
 /**
+ * Valuation: what the market is currently paying for the business.
+ *
+ * ## Why these exist
+ *
+ * The most common unstated assumption in any thesis is "this is not already
+ * priced in", because every thesis is a bet that the market is wrong about
+ * something. It was also, until now, the one assumption this engine could never
+ * touch, and both live theses had exactly one untestable assumption of exactly
+ * this shape.
+ *
+ * These do not close that gap completely and must not be described as though
+ * they do. **We still have no analyst consensus, no forward estimates and no
+ * price targets**, so "the market has not priced in NEXT year's margins" remains
+ * untestable. What these answer is the measurable half: what the market is
+ * paying TODAY, against this company's own earnings and sales, so a re-rating
+ * can be given a number and watched.
+ *
+ * They need BOTH a live price and filed fundamentals, which is why they are
+ * their own category rather than an extension of either.
+ */
+export type ValuationMetric = 'marketCap' | 'trailingPE' | 'priceToSales' | 'earningsYield';
+
+/**
  * Sign and unit conventions. These are contractual — the generator writes
  * thresholds against them and the evaluator compares against them, so an
  * unstated convention produces a breaker that silently never fires (or always
@@ -76,9 +99,23 @@ export const METRIC_SEMANTICS: Record<Metric, string> = {
   drawdownFromHigh:
     'percent below the trailing high, expressed as ZERO OR NEGATIVE. 0 means at the high, -25 means 25% below it. A 25% drawdown is therefore "<= -25", never ">= 25"',
   volatility90d: 'annualised realised volatility in percent, always positive',
+  marketCap: 'share price times shares outstanding, in whole currency units',
+  trailingPE:
+    'price divided by the last four quarters of diluted earnings per share, as a multiple. 35 means the shares cost 35 times last year of earnings. NEVER NEGATIVE: a loss-making company has no meaningful P/E and this reads as unavailable instead',
+  priceToSales:
+    'market capitalisation divided by the last four quarters of revenue, as a multiple. 12 means the shares cost 12 times annual sales',
+  earningsYield:
+    'the last four quarters of earnings as a percent of the share price, which is the inverse of trailing P/E. 3 means 3%. Negative when the company is loss-making',
 };
 
-export type Metric = FundamentalMetric | PriceMetric;
+export type Metric = FundamentalMetric | PriceMetric | ValuationMetric;
+
+export const VALUATION_METRICS: readonly ValuationMetric[] = [
+  'marketCap',
+  'trailingPE',
+  'priceToSales',
+  'earningsYield',
+];
 
 export const FUNDAMENTAL_METRICS: readonly FundamentalMetric[] = [
   'revenue',
@@ -103,6 +140,7 @@ export const PRICE_METRICS: readonly PriceMetric[] = [
 
 /** Percent-valued metrics; thresholds are read as percentages, not ratios. */
 export const PERCENT_METRICS: ReadonlySet<Metric> = new Set<Metric>([
+  'earningsYield',
   'grossMargin',
   'operatingMargin',
   'netMargin',

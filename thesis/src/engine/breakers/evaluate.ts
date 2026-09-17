@@ -1,6 +1,6 @@
 import type { DataSource } from '../../data/DataSource';
 import { NoDataError, type Candle, type Instrument, type Provenance } from '../../data/types';
-import { computePriceMetric, getPriceSeries, isFundamental, readMetric } from './metrics';
+import { computePriceMetric, getPriceSeries, isFundamental, isValuation, readMetric } from './metrics';
 import {
   PERCENT_METRICS,
   type Metric,
@@ -298,6 +298,26 @@ export async function evaluateHistorical(
   const series: SeriesPoint[] = [];
   let examined = 0;
   let windowDescription: string;
+
+  if (isValuation(breaker.metric)) {
+    /*
+      Valuation needs a price AND a filed figure AND a share count, all as they
+      stood on the same past day. That is buildable and worth building, but a
+      wrong base rate is worse than none: pairing today's share count with a
+      2019 price would invent a history that never happened.
+
+      So this says plainly that it does not have the answer, which is the same
+      contract every other unreadable path in this engine honours.
+    */
+    return {
+      breakerId: breaker.id,
+      mode: 'historical',
+      status: 'undeterminable',
+      metric: breaker.metric,
+      reason:
+        'historical base rates are not computed for valuation metrics yet; the live reading is still checked every cycle',
+    };
+  }
 
   if (isFundamental(breaker.metric)) {
     const reading = await readFundamentalSeries(ds, instrument, breaker);

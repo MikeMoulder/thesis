@@ -4,6 +4,7 @@ import { TESTABILITY_CADENCE } from '../decomposer/types';
 import {
   FUNDAMENTAL_METRICS,
   PRICE_METRICS,
+  VALUATION_METRICS,
   type Cadence,
   type Metric,
   type Operator,
@@ -13,10 +14,16 @@ import {
 
 const OPERATORS: readonly Operator[] = ['<', '<=', '>', '>='];
 const SEVERITIES: readonly Severity[] = ['high', 'medium', 'low'];
-const ALL_METRICS = new Set<string>([...FUNDAMENTAL_METRICS, ...PRICE_METRICS]);
+const ALL_METRICS = new Set<string>([
+  ...FUNDAMENTAL_METRICS,
+  ...PRICE_METRICS,
+  ...VALUATION_METRICS,
+]);
 
 /** Cadence follows from the metric — filings do not update continuously. */
 function cadenceForMetric(metric: Metric): Cadence {
+  // Valuation is continuous like price: the multiple moves every time the share
+  // price does, even though the earnings underneath it change quarterly.
   return (FUNDAMENTAL_METRICS as readonly string[]).includes(metric) ? 'periodic' : 'continuous';
 }
 
