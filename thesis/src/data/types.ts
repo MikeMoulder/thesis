@@ -62,11 +62,39 @@ export function unverifiable<T>(reason: string): Sourced<T | null> {
  * decades. Historical base rates come from the company, live state from the
  * instrument.
  */
+/**
+ * What the venue will actually accept for an order on this symbol.
+ *
+ * Carried because an order is rejected for arithmetic long before it is
+ * rejected for being a bad idea. A quantity with five decimals on a symbol
+ * that allows four, or a notional of $8 where the floor is $10, comes back as
+ * a parameter error that says nothing about which parameter. These are the
+ * venue's own published numbers, read from the same getInstruments call the
+ * registry already makes, so a generated order can be checked before anybody
+ * tries to send it.
+ */
+export interface TradingRules {
+  /** Decimals allowed on price, e.g. 2. */
+  pricePrecision: number;
+  /** Decimals allowed on quantity, e.g. 4. */
+  quantityPrecision: number;
+  /** Smallest quantity the venue will accept, in base coin. */
+  minOrderQty: number;
+  /** Smallest order value the venue will accept, in quote coin. */
+  minOrderAmount: number;
+  /** The token being bought or sold, e.g. "rNVDA". */
+  baseCoin: string;
+  /** What it is priced in, e.g. "USDT". */
+  quoteCoin: string;
+}
+
 export interface Instrument {
   /** Underlying equity ticker, e.g. "NVDA". The company identity. */
   ticker: string;
   /** Bitget rToken spot symbol, e.g. "RNVDAUSDT". Undefined if not listed. */
   rTokenSymbol?: string;
+  /** The venue's order rules for that symbol. Absent when not listed. */
+  rules?: TradingRules;
   /** Yahoo Finance symbol for the underlying, usually the ticker itself. */
   yahooSymbol: string;
   /** SEC Central Index Key, zero-padded to 10 digits. */

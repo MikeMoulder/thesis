@@ -90,6 +90,15 @@ interface RawInstrument {
   quoteCoin: string;
   symbolType: string;
   status: string;
+  /*
+    The venue's own order rules. Every one arrives as a STRING, including the
+    numeric ones, which is normal for this API and is exactly how a precision
+    of "4" silently becomes NaN two layers away. Parsed at the boundary.
+  */
+  pricePrecision?: string;
+  quantityPrecision?: string;
+  minOrderQty?: string;
+  minOrderAmount?: string;
 }
 
 interface RawTicker {

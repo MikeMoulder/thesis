@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+
 import { CitationChip } from '@/components/evidence/CitationChip';
 import { Reveal } from '@/components/prose/Reveal';
 import type { CaveatId, DerivedSignal, InvalidationLevel } from '@/engine/signal';
+import type { OrderTicket } from '@/engine/ticket';
 import { metricPhrase } from '@/lib/glossary';
 import { cn } from '@/lib/utils';
 
@@ -93,6 +96,95 @@ function LevelRow({ level, reference }: { level: InvalidationLevel; reference: n
 }
 
 /**
+ * The order, handed over rather than sent.
+ *
+ * THESIS holds no key and has no account. Bitget gives an agent account's
+ * credential to a program on the user's OWN machine, so a deployed web app
+ * never sees it, and that is the shape of the thing rather than an obstacle.
+ * What this panel can do is produce an order correct down to the venue's own
+ * decimal places, and hand it to the agent the user already has connected.
+ *
+ * Both forms are offered because two different things will read it. A person
+ * pastes the sentence into their agent and lets it work out the call; an agent
+ * that wants the exact contract takes the JSON. Neither is the "real" one.
+ */
+function OrderHandoff({ ticket }: { ticket: OrderTicket }) {
+  const [copied, setCopied] = useState<'json' | 'text' | null>(null);
+
+  const copy = async (what: 'json' | 'text', value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(what);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // Clipboard needs a user gesture in some browsers and a secure context
+      // in others. Both forms are on screen and selectable either way.
+    }
+  };
+
+  if (!ticket.request) {
+    return (
+      <div className="mt-5 border-t border-line-strong pt-3">
+        <Label>The order this implies</Label>
+        <p className="mt-2 max-w-prose text-base leading-relaxed text-text">
+          None. {ticket.blockers[0]}
+        </p>
+        {ticket.blockers.slice(1).map((b) => (
+          <p key={b} className="mt-1 max-w-prose text-sm leading-relaxed text-faint">
+            {b}
+          </p>
+        ))}
+      </div>
+    );
+  }
+
+  const json = JSON.stringify(ticket.request, null, 2);
+
+  return (
+    <div className="mt-5 border-t border-line-strong pt-3">
+      <Label>The order this implies</Label>
+
+      <p className="mt-2 max-w-prose text-base leading-relaxed text-text">{ticket.instruction}</p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => copy('text', ticket.instruction)}
+          className="rounded-pill border border-line px-2.5 py-1 text-meta text-muted hover:border-line-strong hover:text-text"
+        >
+          {copied === 'text' ? 'copied' : 'copy the instruction'}
+        </button>
+        <button
+          type="button"
+          onClick={() => copy('json', json)}
+          className="rounded-pill border border-line px-2.5 py-1 text-meta text-muted hover:border-line-strong hover:text-text"
+        >
+          {copied === 'json' ? 'copied' : 'copy the call'}
+        </button>
+      </div>
+
+      <pre className="mt-3 overflow-x-auto rounded-block border border-line p-3 text-sm leading-relaxed text-muted">
+        <code>{json}</code>
+      </pre>
+
+      {ticket.notes.map((note) => (
+        <p key={note} className="mt-2 max-w-prose text-sm leading-relaxed text-faint">
+          {note}
+        </p>
+      ))}
+
+      {/* The sentence that makes the whole handoff make sense. Without it a
+          reader assumes the button below is missing rather than absent on
+          purpose. */}
+      <p className="mt-3 max-w-prose text-sm leading-relaxed text-trust">
+        THESIS cannot place this. It holds no key and has no account. Run it in the agent where
+        your own Bitget account is already connected.
+      </p>
+    </div>
+  );
+}
+
+/**
  * Caveats whose point this panel makes elsewhere, in full, in its own section.
  * Listing them again in the closing summary is repetition, not emphasis.
  */
@@ -122,7 +214,10 @@ function visibleCaveats(caveats: DerivedSignal['caveats']): Array<{ id: string; 
     .filter((c) => c.text.length > 0 && !ALREADY_SHOWN.has(c.id as CaveatId));
 }
 
-export function SignalPanel({ signal }: { signal: DerivedSignal }) {
+/** The route attaches `ticket`; the engine does not, so it is additive here. */
+export type SignalWithTicket = DerivedSignal & { ticket?: OrderTicket | null };
+
+export function SignalPanel({ signal }: { signal: SignalWithTicket }) {
   const { levels, nearest, size, monitorability } = signal;
   const shown = visibleCaveats(signal.caveats);
 
@@ -228,6 +323,10 @@ export function SignalPanel({ signal }: { signal: DerivedSignal }) {
           </p>
         </div>
       )}
+
+      {/* --------------------------------------------------------------- */}
+
+      {signal.ticket ? <OrderHandoff ticket={signal.ticket} /> : null}
 
       {/* --------------------------------------------------------------- */}
 

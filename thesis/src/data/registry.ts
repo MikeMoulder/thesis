@@ -1,4 +1,4 @@
-import { ProviderError, type Instrument } from './types';
+import { ProviderError, type Instrument, type TradingRules } from './types';
 import { SEC_TICKERS_URL, USER_AGENT } from './config';
 import { listStockInstruments } from './providers/bitget';
 
@@ -11,7 +11,13 @@ import { listStockInstruments } from './providers/bitget';
  * both providers.
  */
 
-let rTokenIndex: Map<string, string> | null = null;
+/** Symbol plus the venue's order rules, keyed by underlying ticker. */
+export interface RTokenListing {
+  symbol: string;
+  rules: TradingRules;
+}
+
+let rTokenIndex: Map<string, RTokenListing> | null = null;
 let cikIndex: Map<string, { cik: string; name: string }> | null = null;
 
 /**
@@ -19,15 +25,31 @@ let cikIndex: Map<string, { cik: string; name: string }> | null = null;
  * symbolType "stock" — e.g. NVDA -> RNVDAUSDT (baseCoin "rNVDA").
  * Verified 2026-09-16: 1,175 stock instruments listed.
  */
-export async function loadRTokenIndex(): Promise<Map<string, string>> {
+export async function loadRTokenIndex(): Promise<Map<string, RTokenListing>> {
   if (rTokenIndex) return rTokenIndex;
 
   const instruments = await listStockInstruments();
-  const index = new Map<string, string>();
+  const index = new Map<string, RTokenListing>();
   for (const inst of instruments) {
     // baseCoin is "rNVDA"; strip the leading "r" to get the underlying ticker.
     if (!inst.baseCoin.startsWith('r')) continue;
-    index.set(inst.baseCoin.slice(1).toUpperCase(), inst.symbol);
+    index.set(inst.baseCoin.slice(1).toUpperCase(), {
+      symbol: inst.symbol,
+      /*
+        Defaults matter here and are not arbitrary. A missing precision that
+        fell back to "unlimited decimals" would generate an order the venue
+        rejects; falling back to the tightest plausible value generates one it
+        accepts but slightly smaller than asked. Wrong in the safe direction.
+      */
+      rules: {
+        pricePrecision: Number(inst.pricePrecision ?? 2),
+        quantityPrecision: Number(inst.quantityPrecision ?? 4),
+        minOrderQty: Number(inst.minOrderQty ?? 0),
+        minOrderAmount: Number(inst.minOrderAmount ?? 0),
+        baseCoin: inst.baseCoin,
+        quoteCoin: inst.quoteCoin,
+      },
+    });
   }
   rTokenIndex = index;
   return index;
@@ -68,14 +90,15 @@ export async function loadCikIndex(): Promise<Map<string, { cik: string; name: s
 export async function resolveInstrument(ticker: string): Promise<Instrument> {
   const key = ticker.trim().toUpperCase();
   const [rTokens, ciks] = await Promise.all([
-    loadRTokenIndex().catch(() => new Map<string, string>()),
+    loadRTokenIndex().catch(() => new Map<string, RTokenListing>()),
     loadCikIndex().catch(() => new Map<string, { cik: string; name: string }>()),
   ]);
 
   const sec = ciks.get(key);
+  const listing = rTokens.get(key);
   return {
     ticker: key,
-    rTokenSymbol: rTokens.get(key),
+    ...(listing ? { rTokenSymbol: listing.symbol, rules: listing.rules } : {}),
     yahooSymbol: key,
     cik: sec?.cik,
     name: sec?.name,

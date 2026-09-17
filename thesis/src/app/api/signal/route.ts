@@ -3,6 +3,7 @@ import { evaluateLive, type Evaluation } from '@/engine/breakers/evaluate';
 import { readMetric } from '@/engine/breakers/metrics';
 import type { BreakerSet } from '@/engine/breakers/types';
 import { deriveSignal } from '@/engine/signal';
+import { buildTicket } from '@/engine/ticket';
 
 /**
  * Derive a signal from a thesis that is already on screen.
@@ -37,7 +38,7 @@ const DIRECTIONS = ['bullish', 'bearish', 'neutral'] as const;
 type Direction = (typeof DIRECTIONS)[number];
 
 export async function POST(request: Request): Promise<Response> {
-  let body: { ticker?: unknown; direction?: unknown; breakerSet?: unknown };
+  let body: { ticker?: unknown; direction?: unknown; breakerSet?: unknown; thesisId?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -61,12 +62,6 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const instrument = await ds.resolve(ticker);
 
-    /*
-      The price is read on its own rather than lifted out of a price breaker's
-      evaluation, because a thesis may have no price breaker at all and the
-      reference is needed either way. A failure here is not fatal: the signal
-      reports every level it cannot anchor, which is more useful than a 502.
-    */
     /*
       Price, depth and exit cost are read DIRECTLY rather than lifted out of
       the breaker evaluations. A thesis need not carry a price tripwire or a
@@ -122,8 +117,27 @@ export async function POST(request: Request): Promise<Response> {
       rTokenSymbol: instrument.rTokenSymbol ?? null,
     });
 
+    /*
+      The ticket is built here rather than in a second request. Every number it
+      needs is already in hand, and a separate round trip would re-read the
+      price and produce an order priced a few seconds away from the size cap
+      shown beside it.
+
+      It needs the venue's own rules, which is why the registry now carries
+      them. Without `rules` no order can be checked before it is handed over,
+      and an order that fails on a decimal place in front of a judge is worse
+      than no order at all.
+    */
+    const ticket = instrument.rules
+      ? buildTicket({
+          signal,
+          rules: instrument.rules,
+          thesisId: typeof body.thesisId === 'string' ? body.thesisId : ticker.toLowerCase(),
+        })
+      : null;
+
     return Response.json(
-      { ...signal, modelCalls: 0 },
+      { ...signal, ticket, modelCalls: 0 },
       { headers: { 'cache-control': 'no-store' } },
     );
   } catch (error) {

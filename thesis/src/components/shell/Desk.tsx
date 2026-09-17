@@ -12,7 +12,7 @@ import { AssumptionTree } from '@/components/thesis/AssumptionTree';
 import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
 import { ResearchBrief } from '@/components/thesis/ResearchBrief';
-import { SignalPanel } from '@/components/thesis/SignalPanel';
+import { SignalPanel, type SignalWithTicket } from '@/components/thesis/SignalPanel';
 import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
@@ -20,7 +20,6 @@ import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
 import { DotPattern } from '@/components/ui/DotPattern';
 import { deriveActions } from '@/engine/actions';
 import { deriveBrief } from '@/engine/brief';
-import type { DerivedSignal } from '@/engine/signal';
 import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
@@ -83,7 +82,7 @@ type Turn =
       skipped: StressSkip[];
       current: Partial<Record<Metric, number>>;
     }
-  | { kind: 'signal'; id: string; ticker: string; signal: DerivedSignal }
+  | { kind: 'signal'; id: string; ticker: string; signal: SignalWithTicket }
   | { kind: 'answer'; id: string; text: string }
   | { kind: 'note'; id: string; text: string; tone: 'trust' | 'faint' };
 
@@ -474,7 +473,7 @@ export function Desk({
             breakerSet: run.state.breakerSet,
           }),
         });
-        const data = (await response.json()) as DerivedSignal & { error?: string };
+        const data = (await response.json()) as SignalWithTicket & { error?: string };
         if (!response.ok || data.error) {
           addTurn(session.id, {
             kind: 'note',
