@@ -53,7 +53,7 @@ export function CitationChip({
 
   // The full source string is often long ("SEC 10-Q 0001045810-26-000075").
   // The chip shows a short label; the whole thing stays available on hover.
-  const fullTitle = [provenance.source, provenance.derivation].filter(Boolean).join(' — ');
+  const fullTitle = [provenance.source, provenance.derivation].filter(Boolean).join(': ');
 
   const body = (
     <>

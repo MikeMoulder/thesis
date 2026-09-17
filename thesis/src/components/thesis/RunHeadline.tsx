@@ -38,27 +38,33 @@ function headlineFor(
       tone: 'fired',
       text:
         fired.length === 1
-          ? 'One of your tripwires has already been crossed.'
-          : `${fired.length} of your tripwires have already been crossed.`,
+          ? 'One of your tripwires has already been crossed. Something you are counting on is no longer true.'
+          : `${fired.length} of your tripwires have already been crossed. Things you are counting on are no longer true.`,
     };
   }
 
   const blind = decomposition.summary.unfalsifiableLoadBearing.length;
   const total = decomposition.summary.assumptionCount;
   if (blind > 0) {
+    /*
+      This used to read "One of the 5 things this trade rests on cannot be
+      checked by anything here", which states a fact and leaves the reader to
+      work out the consequence. The consequence IS the finding: if it breaks,
+      nobody tells you. Say that instead.
+    */
     return {
       tone: 'trust',
       text:
         blind === 1
-          ? `One of the ${total} things this trade rests on cannot be checked by anything here.`
-          : `${blind} of the ${total} things this trade rests on cannot be checked by anything here.`,
+          ? `Your reasoning rests on ${total} things. One of them could break without anything here noticing.`
+          : `Your reasoning rests on ${total} things. ${blind} of them could break without anything here noticing.`,
     };
   }
 
   if (breakerSet && breakerSet.breakers.length > 0) {
     return {
       tone: 'plain',
-      text: `Everything this trade rests on has a tripwire watching it. Nothing has been crossed.`,
+      text: `Everything this trade rests on now has a number watching it. None have been crossed.`,
     };
   }
 
@@ -121,18 +127,41 @@ export function RunHeadline({
         <Reveal text={headline.text} step={30} />
       </p>
 
+      {/*
+        Four bare numbers with four-word labels read as a scoreboard whose rules
+        nobody explained. The labels now say what each number is a count OF, and
+        the line underneath states how they relate, because the unanswered
+        question was whether these were four separate groups or slices of one.
+      */}
       <div className="flex flex-wrap gap-x-9 gap-y-4">
         <Stat value={summary.assumptionCount} label="things it rests on" />
-        <Stat value={summary.implicitCount} label="you never said" />
+        <Stat value={summary.implicitCount} label="of those, unspoken" />
         <Stat
           value={blind}
-          label={blind === 1 ? 'nothing can check' : 'nothing can check'}
+          label="of those, uncheckable"
           {...(blind > 0 ? { tone: 'trust' as const } : {})}
         />
         {breakerSet ? (
-          <Stat value={breakerSet.breakers.length} label="tripwires set" />
+          <Stat value={breakerSet.breakers.length} label="numbers now watching" />
         ) : null}
       </div>
+
+      <p className="max-w-prose text-base text-muted">
+        Read that as: your reasoning depends on{' '}
+        <span data-figure>{summary.assumptionCount}</span> separate things being true.{' '}
+        <span data-figure>{summary.implicitCount}</span> of them you never actually wrote down,{' '}
+        {blind > 0 ? (
+          <>
+            and <span data-figure>{blind}</span> of them cannot be measured by any data this desk
+            can reach.
+          </>
+        ) : (
+          <>and every one of them can be measured.</>
+        )}{' '}
+        {breakerSet
+          ? `The rest now have a specific number attached, so you find out from the data instead of from the price.`
+          : ''}
+      </p>
     </div>
   );
 }

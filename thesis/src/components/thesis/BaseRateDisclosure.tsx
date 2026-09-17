@@ -82,7 +82,7 @@ export function BaseRateDisclosure({ ticker, breaker }: { ticker: string; breake
       <div className="mt-3">
         {state.phase === 'loading' ? (
           <p className="text-sm text-faint">
-            Reading the full record — filings and price history…
+            Reading the full record: filings and price history…
           </p>
         ) : null}
         {state.phase === 'evidence' ? (

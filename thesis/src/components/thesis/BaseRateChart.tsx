@@ -343,7 +343,7 @@ export function BaseRateChart({
       {demoted ? (
         <p className="max-w-prose text-sm text-text">
           Severity was <span className="text-faint">{breaker.severity} (inherited)</span> and the
-          record makes it <span data-figure>{evidence.measuredSeverity}</span> — measured from{' '}
+          record makes it <span data-figure>{evidence.measuredSeverity}</span>, measured from{' '}
           <span data-figure>{evidence.occurrences.length}</span> occurrences rather than assumed.
         </p>
       ) : null}

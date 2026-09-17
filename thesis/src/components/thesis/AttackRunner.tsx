@@ -40,7 +40,7 @@ const STAGE_LABEL: Record<RunStageId, string> = {
 const STAGE_NARRATION: Record<RunStageId, string> = {
   resolve: 'Finding the company, the token it trades as, and its filing history…',
   decompose:
-    'Reading your thesis for everything it quietly assumes — including the parts you did not say out loud.',
+    'Reading your thesis for everything it quietly assumes, including the parts you did not say out loud.',
   breakers:
     'Working out which of those assumptions can actually be checked, and what number would prove each one wrong.',
   evaluate: 'Reading the latest filings and live prices to see where each one stands right now.',
@@ -274,7 +274,7 @@ export function AttackRunner() {
           ) : null}
 
           {/*
-            Base rates are fetched per tripwire on demand — see
+            Base rates are fetched per tripwire on demand. See
             BaseRateDisclosure for why they are not part of the main run.
             Threshold breakers only: an event breaker has no numeric record.
           */}
