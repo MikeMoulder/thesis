@@ -3,9 +3,12 @@
 /**
  * PLACEHOLDER — not the real Activity feed.
  *
- * `src/app/activity/page.tsx` imports this. See the note in
- * `components/home/Home.tsx`: without the file, dev compilation fails and takes
- * the API routes down with it.
+ * `src/app/activity/page.tsx` imports this. Without the file, dev compilation
+ * fails and takes the API routes down with it, which is the only reason it
+ * exists. Replace it wholesale.
+ *
+ * The sibling placeholder it used to point at, `components/home/Home.tsx`, has
+ * been deleted: the real My Theses screen now stands at `/`.
  *
  * The real feed reads the `changes` that `appendCheck` already records on every
  * check — each one carries the assumption, both ends of the transition, the
