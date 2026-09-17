@@ -46,19 +46,27 @@ import { summariseBreakers, type BreakerSet } from './breakers/types';
  * Below the client's 120 second default, because that default is sized for a
  * model failing rather than for a person watching.
  *
- * The gateway is slow and highly variable, measured rather than guessed. Trivial
- * completions return in about 3s. Real analytical generation measured 17.5s at
- * best, and repeatedly exceeded 30s, 60s and 110s on identical input. Prompt
- * SIZE is not the cause: a 650 character filler prompt answers in 8.5s while a
- * shorter prompt demanding real reasoning hangs. What costs time here is
- * generating tokens, which is why the output contract above is capped at two
- * terse assumptions.
+ * This was 45 seconds, sized around a diagnosis that turned out to be wrong.
  *
- * Forty-five seconds leaves room for a genuine answer while keeping the worst
- * case survivable for someone watching. The stage is optional by design, so
- * giving up is cheap.
+ * The old reading was that the gateway is slow and variable, and that
+ * generating tokens is what costs the time. It is not. The cost was the
+ * HIDDEN reasoning pass described at the completion call below, and once that
+ * is switched off the variability mostly goes with it. Measured across
+ * thirteen consecutive live calls through this function:
+ *
+ *   answered 13 of 13   min 2968ms   median about 3900ms   max 8432ms
+ *
+ * Twenty seconds is therefore a margin of roughly 2.4x over the worst call
+ * actually observed, rather than a guess with a wrong reason attached.
+ *
+ * Shortening it is not only tidiness. The stage is optional by design, so the
+ * cost of giving up is only the waiting, and the waiting is paid by a person
+ * watching a run. If the gateway does go down mid demo, twenty seconds of a
+ * stage that cannot finish is survivable and forty-five is not.
+ *
+ * Verify the current numbers on any machine with: npm run qwen:check
  */
-export const CHALLENGE_TIMEOUT_MS = Number(process.env.CHALLENGE_TIMEOUT_MS ?? 45_000);
+export const CHALLENGE_TIMEOUT_MS = Number(process.env.CHALLENGE_TIMEOUT_MS ?? 20_000);
 
 /*
   The system prompt is tiny, and that is a measured constraint rather than a
