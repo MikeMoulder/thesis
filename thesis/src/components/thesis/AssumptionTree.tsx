@@ -32,14 +32,25 @@ const LOAD_TEXT: Record<Assumption['loadBearing'], string> = {
 };
 
 const LOAD_LABEL: Record<Assumption['loadBearing'], string> = {
-  high: 'the trade rests on this',
+  high: 'the whole trade rests on this',
   medium: 'matters, but not fatal',
   low: 'minor',
 };
 
+/*
+  These used to read "you didn't say this" and "your words", which a reader
+  reasonably took as a prompt: had they forgotten to type something, was an
+  answer being asked of them?
+
+  Neither label is a request. They describe where the assumption CAME FROM, and
+  the distinction is the most valuable thing on the page: an assumption you
+  never stated is one you have never checked, because you did not know you were
+  making it. So the label now says that outright, and the note above the tree
+  explains why it matters before the first one appears.
+*/
 const ORIGIN_LABEL: Record<Assumption['origin'], string> = {
-  implicit: "you didn't say this",
-  stated: 'your words',
+  implicit: 'you never said this, but it has to be true',
+  stated: 'you said this yourself',
 };
 
 function Meta({ children, tone }: { children: React.ReactNode; tone?: 'trust' }) {
@@ -100,10 +111,43 @@ function Node({
         )}
       />
 
+      {/*
+        CONTENT FIRST, CLASSIFICATION SECOND.
+
+        The two labels together run to eleven words, and with them above the
+        statement a reader met "you never said this, but it has to be true, the
+        whole trade rests on this" before learning what THIS was. The metadata
+        outweighed the thing it described.
+
+        So the row now reads: which one, what it claims, then how it was
+        classified. The verdict stays at the top right, because that is the one
+        piece of metadata worth seeing before the sentence.
+      */}
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <span data-figure className={cn('text-sm', untestable ? 'text-trust' : 'text-faint')}>
-          {assumption.id}
+          {index + 1}
         </span>
+        <p
+          className={cn(
+            'min-w-0 flex-1 max-w-prose text-base leading-snug',
+            LOAD_TEXT[assumption.loadBearing],
+          )}
+        >
+          <Reveal text={assumption.statement} delay={Math.min(index, 8) * 70 + 120} />
+        </p>
+        {health ? (
+          <span
+            className={cn(
+              'shrink-0 text-meta uppercase tracking-[0.12em]',
+              HEALTH_TEXT[health.health],
+            )}
+          >
+            {HEALTH_WORD[health.health]}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <Meta>
           {implicitDef ? (
             <Define definition={implicitDef}>{ORIGIN_LABEL[assumption.origin]}</Define>
@@ -118,21 +162,7 @@ function Node({
             LOAD_LABEL[assumption.loadBearing]
           )}
         </Meta>
-        {health ? (
-          <span
-            className={cn(
-              'ml-auto text-meta uppercase tracking-[0.12em]',
-              HEALTH_TEXT[health.health],
-            )}
-          >
-            {HEALTH_WORD[health.health]}
-          </span>
-        ) : null}
       </div>
-
-      <p className={cn('mt-1.5 max-w-prose text-base leading-snug', LOAD_TEXT[assumption.loadBearing])}>
-        <Reveal text={assumption.statement} delay={Math.min(index, 8) * 70 + 120} />
-      </p>
 
       {/*
         WHY the verdict, never just the verdict. A badge on its own is an
@@ -163,8 +193,8 @@ function Node({
               delay={Math.min(index, 8) * 70 + 260}
               text={
                 danger
-                  ? 'The trade leans on it, and no data this system can reach would tell you if it stopped being true. You have to judge it yourself.'
-                  : 'No data this system can reach would tell you if it stopped being true.'
+                  ? 'There is no filing, no price and no feed in this desk that could tell you if it stopped being true, and the whole trade leans on it. That does not make it wrong. It means you are trusting it, and only you can settle it.'
+                  : 'There is no filing, no price and no feed in this desk that could tell you if it stopped being true.'
               }
             />
           </span>
@@ -176,10 +206,9 @@ function Node({
               <span aria-hidden className="text-faint">
                 ↳
               </span>
-              <span className="text-muted">watched by</span>
-              <span data-figure className="text-sm text-faint">
-                {breaker.id}
-              </span>
+              {/* No breaker id. The condition beside it says what it watches
+                  far better than "B4" ever did. */}
+              <span className="text-muted">we will tell you</span>
               <PlainCondition breaker={breaker} />
             </li>
           ))}
@@ -188,8 +217,8 @@ function Node({
         <p className="mt-2 text-base text-faint">Working out how to check this…</p>
       ) : (
         <p className="mt-2 max-w-prose text-base text-faint">
-          This could be checked, but no tripwire was built for it — so you will not get a signal
-          either.
+          This one could be measured, but no tripwire was built for it, so nothing will warn you
+          either way.
         </p>
       )}
     </li>
@@ -218,27 +247,53 @@ export function AssumptionTree({
 }) {
   const breakers = breakerSet?.breakers ?? [];
   const { claims, assumptions, summary } = decomposition;
+  /** The load bearing assumptions nothing can test, as objects rather than ids. */
+  const blind = summary.unfalsifiableLoadBearing
+    .map((id) => assumptions.find((a) => a.id === id))
+    .filter((a): a is Assumption => Boolean(a));
   const tripwireDef = defineConcept('tripwire');
   const assumptionDef = defineConcept('assumption');
 
   return (
     <div className={cn('flex flex-col gap-7', className)}>
-      <p className="max-w-prose text-base text-muted">
-        Your thesis, pulled apart. Each line is an{' '}
-        {assumptionDef ? <Define definition={assumptionDef} /> : 'assumption'} — something that has
-        to be true for the trade to work. Where one can be checked, it gets a{' '}
-        {tripwireDef ? <Define definition={tripwireDef} /> : 'tripwire'}.
-      </p>
+      {/*
+        The teaching happens HERE, once, before the first row. Labels on
+        individual rows have room for three or four words, and three or four
+        words cannot explain why an unstated assumption is worth more attention
+        than a stated one. A reader who has read this paragraph can read every
+        row below without a tooltip.
+      */}
+      <div className="flex max-w-prose flex-col gap-3 text-base text-muted">
+        <p>
+          Every line below is something that has to be true for this trade to work. This is your
+          reasoning, taken apart into the pieces it stands on.
+        </p>
+        <p>
+          Some of them you wrote yourself. Others you never said out loud, but your reasoning does
+          not hold without them. Those unstated ones are worth the most attention, because you
+          cannot check a belief you did not know you had.
+        </p>
+        <p>
+          Where a line can be measured, we put a{' '}
+          {tripwireDef ? <Define definition={tripwireDef} /> : 'tripwire'} under it: an exact number
+          that would tell you it has stopped being true. Where nothing can measure it, we say so
+          rather than pretend.
+        </p>
+      </div>
 
-      {claims.map((claim) => {
+      {claims.map((claim, claimIndex) => {
         const supporting = assumptions.filter((a) => a.supports.includes(claim.id));
 
         return (
           <section key={claim.id}>
             <div className="flex flex-wrap items-baseline gap-x-2.5">
-              <span data-figure className="text-sm text-faint">
-                {claim.id}
-              </span>
+              {/* Engine ids are not shown. "C1" told the reader nothing, and a
+                  single-claim thesis does not need a number at all. */}
+              {claims.length > 1 ? (
+                <span data-figure className="text-sm text-faint">
+                  {claimIndex + 1}
+                </span>
+              ) : null}
               <Meta>what you are betting on</Meta>
             </div>
             <p className="mt-1.5 max-w-prose text-lg leading-snug text-text">{claim.statement}</p>
@@ -261,15 +316,30 @@ export function AssumptionTree({
         );
       })}
 
-      {summary.unfalsifiableLoadBearing.length > 0 ? (
-        <p className="max-w-prose border-t border-line pt-4 text-base text-trust">
-          {summary.unfalsifiableLoadBearing.join(' and ')}{' '}
-          {summary.unfalsifiableLoadBearing.length === 1 ? 'is' : 'are'} holding up this trade, and
-          nothing here can check{' '}
-          {summary.unfalsifiableLoadBearing.length === 1 ? 'it' : 'them'}. If{' '}
-          {summary.unfalsifiableLoadBearing.length === 1 ? 'it stops' : 'they stop'} being true, you
-          will not be told.
-        </p>
+      {/*
+        This printed the raw engine ids: "A3 is holding up this trade". A reader
+        has no idea what A3 is, and hunting for it defeats the purpose of a
+        summary. It now quotes the assumption itself.
+      */}
+      {blind.length > 0 ? (
+        <div className="max-w-prose border-t border-line pt-4">
+          <p className="text-base text-trust">
+            {blind.length === 1
+              ? 'One of these is holding up the whole trade, and nothing in this desk can check it:'
+              : `${blind.length} of these are holding up the whole trade, and nothing in this desk can check them:`}
+          </p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {blind.map((assumption) => (
+              <li key={assumption.id} className="text-base leading-snug text-trust/85">
+                &ldquo;{assumption.statement}&rdquo;
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 text-base text-trust/85">
+            If {blind.length === 1 ? 'it stops' : 'they stop'} being true, nothing here will tell
+            you. That judgement stays with you.
+          </p>
+        </div>
       ) : null}
     </div>
   );
