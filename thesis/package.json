@@ -37,7 +37,8 @@
     "coverage": "tsx src/scripts/coverage.ts",
     "backfill": "tsx src/scripts/backfill.ts",
     "memory:check": "tsx src/scripts/memory-check.ts",
-    "cron:check": "tsx src/scripts/cron-check.ts"
+    "cron:check": "tsx src/scripts/cron-check.ts",
+    "tg:check": "tsx src/scripts/tg-check.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
