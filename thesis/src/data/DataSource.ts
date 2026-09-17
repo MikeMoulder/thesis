@@ -81,6 +81,15 @@ export interface DataSource {
     opts?: { limit?: number },
   ): Promise<Sourced<DerivedMetric[]>>;
 
+  /**
+   * Shares outstanding, so a share price can become a company valuation.
+   *
+   * Sits beside the fundamentals because it comes from the same filings, but it
+   * is a single instantaneous figure rather than a series: a share count is a
+   * fact about a moment, not about a period.
+   */
+  getSharesOutstanding(instrument: Instrument): Promise<Sourced<number>>;
+
   // -- News -----------------------------------------------------------------
 
   getNews(

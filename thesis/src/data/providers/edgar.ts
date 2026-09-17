@@ -216,6 +216,74 @@ function deriveQ4(
   return derived;
 }
 
+/**
+ * Shares outstanding, for turning a share price into a company valuation.
+ *
+ * Instantaneous rather than a duration: a share count is a fact about a MOMENT,
+ * so these facts carry no `start` and the quarterly and annual filters discard
+ * every one of them. They need their own path.
+ *
+ * `EntityCommonStockSharesOutstanding` is the cover page figure and is the most
+ * current thing in the filing, which is why it is tried first. The balance sheet
+ * tag is the fallback for filers that omit it.
+ */
+export async function getSharesOutstanding(instrument: Instrument): Promise<Sourced<number>> {
+  const cik = requireCik(instrument);
+  const facts = await fetchCompanyFacts(cik);
+
+  /*
+    Point in time first, then the weighted average.
+
+    A count on a given date is the right number for a valuation. But filers with
+    multiple share classes often do not publish a single combined figure at all:
+    Meta reports neither cover page nor balance sheet share counts in company
+    facts, because its Class A and Class B lines carry member axes that the
+    aggregated endpoint drops.
+
+    What every filer does report, because earnings per share depends on it, is
+    the weighted average diluted count. It is a period AVERAGE rather than a
+    closing figure, so it lags a fast-changing share count slightly, and
+    provenance says so rather than passing it off as a point in time. A market
+    value that is a fraction stale beats no market value at all.
+  */
+  const pointInTime = ['EntityCommonStockSharesOutstanding', 'CommonStockSharesOutstanding'];
+  const weightedAverage = [
+    'WeightedAverageNumberOfDilutedSharesOutstanding',
+    'WeightedAverageNumberOfSharesOutstandingBasic',
+  ];
+
+  for (const concept of [...pointInTime, ...weightedAverage]) {
+    const node = findConcept(facts, concept);
+    if (!node) continue;
+
+    const unit = Object.keys(node.units)[0];
+    if (!unit) continue;
+
+    const isAverage = weightedAverage.includes(concept);
+    const candidates = (node.units[unit] ?? [])
+      // Instantaneous tags carry no start; the averages are duration facts, so
+      // requiring no start would discard every one of them.
+      .filter((f) => (isAverage ? true : !f.start) && f.end && f.val > 0)
+      .sort((a, b) => Date.parse(a.end) - Date.parse(b.end));
+
+    const latest = candidates[candidates.length - 1];
+    if (!latest) continue;
+
+    return sourced(latest.val, {
+      status: isAverage ? 'inferred' : 'sourced',
+      source: `SEC ${latest.form} ${latest.accn}`,
+      url: filingUrl(cik, latest.accn),
+      asOf: latest.filed,
+      confidence: isAverage ? 'moderate' : 'high',
+      derivation: isAverage
+        ? `${concept}: an average over the quarter ending ${latest.end}, not a closing count, because this filer reports no single combined share count`
+        : `${concept} as of ${latest.end}`,
+    });
+  }
+
+  throw new NoDataError(`${instrument.ticker} does not report shares outstanding`, 'edgar');
+}
+
 export async function getFundamentalSeries(
   instrument: Instrument,
   concept: string,

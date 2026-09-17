@@ -69,6 +69,10 @@ export class DirectDataSource implements DataSource {
     return yahoo.getUnderlyingHistory(instrument, period);
   }
 
+  getSharesOutstanding(instrument: Instrument): Promise<Sourced<number>> {
+    return edgar.getSharesOutstanding(instrument);
+  }
+
   getFundamentalSeries(
     instrument: Instrument,
     concept: string,

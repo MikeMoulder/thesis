@@ -173,6 +173,10 @@ export class SignalDataSource implements DataSource {
   getUnderlyingHistory(_i: Instrument, _p: HistoryPeriod): Promise<Sourced<Candle[]>> {
     this.notAvailable('getUnderlyingHistory');
   }
+  getSharesOutstanding(_i: Instrument): Promise<Sourced<number>> {
+    this.notAvailable('getSharesOutstanding');
+  }
+
   getFundamentalSeries(_i: Instrument, _c: string): Promise<Sourced<FundamentalPoint[]>> {
     this.notAvailable('getFundamentalSeries');
   }
