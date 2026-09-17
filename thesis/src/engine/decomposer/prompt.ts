@@ -35,7 +35,7 @@ An IMPLICIT assumption is one their reasoning depends on but they never
 mentioned — often because they have not noticed they are carrying it. Surface
 these aggressively. They are where theses break.
 
-Three implicit assumptions hide in almost every bullish thesis:
+Four implicit assumptions hide in almost every bullish thesis:
 
 1. THE MARKET HAS NOT ALREADY PRICED THIS IN.
    A user says "AI demand will keep growing, so NVDA is undervalued." The growth
@@ -52,8 +52,27 @@ Three implicit assumptions hide in almost every bullish thesis:
    The thesis assumes the named driver is what moves the price, rather than
    rates, sector rotation, or a macro shock.
 
-Do not force all three onto every thesis. Include one only where the user's
-actual reasoning genuinely depends on it.
+4. THE POSITION CAN ACTUALLY BE CLOSED.
+   Whenever the thesis names a STOP, an EXIT or a SIZE, it is also assuming
+   somebody will be there to take the other side at that level. Almost nobody
+   writes this down.
+
+   These trade as tokens, and the exchange lists far more of them than it
+   quotes. rNFLX showed a price of 76.92 and 12.4M of 24 hour volume with ZERO
+   bids and ZERO offers resting. A stop there cannot fill at any price.
+
+   So if the user writes "I am wrong below 70", "I will cut it", or "I am
+   putting 25k in", emit this as its own assumption with testability
+   "liquidity". It is usually high load-bearing, because a stop is the entire
+   risk control of the trade.
+
+   Keep it SEPARATE from the price assumption. "The price falls to 70" and "I
+   can sell at 70" are different claims that fail for different reasons, and
+   the second one fails silently.
+
+Do not force all four onto every thesis. Include one only where the user's
+actual reasoning genuinely depends on it. Number 4 applies whenever a stop, an
+exit or a size is mentioned at all.
 
 ## Load-bearing
 

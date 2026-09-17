@@ -1,5 +1,5 @@
 import { MalformedOutputError } from '../../llm/types';
-import type { Assumption, Claim, Testability } from './types';
+import { TESTABILITY_CADENCE, type Assumption, type Claim, type Testability } from './types';
 import { checkDataNeeded } from './capabilities';
 
 /**
@@ -11,7 +11,24 @@ import { checkDataNeeded } from './capabilities';
  * far more repairable than a generic type error.
  */
 
-const TESTABILITY: readonly Testability[] = ['fundamental', 'price', 'valuation', 'event', 'none'];
+/*
+  Derived from TESTABILITY_CADENCE rather than restated here.
+
+  This list was hand-written and went stale the moment `liquidity` was added to
+  the union, and the failure was close to invisible. The model did everything
+  right: it surfaced the exit assumption, named the order book as what would
+  test it, and marked it "liquidity". The validator rejected the word, the
+  repair pass told the model that was not a permitted category, and the model
+  obediently downgraded a high load-bearing assumption to "none" and wrote a
+  reason saying the data was unavailable. It was available. The only thing
+  missing was this array.
+
+  TESTABILITY_CADENCE is a Record over the union, so adding a member forces an
+  entry there and this list follows automatically. The cost of the old form was
+  a silently under-reported risk, which is precisely what this product exists
+  to prevent.
+*/
+const TESTABILITY = Object.keys(TESTABILITY_CADENCE) as readonly Testability[];
 const LOAD_BEARING = ['high', 'medium', 'low'] as const;
 const ORIGIN = ['stated', 'implicit'] as const;
 const DIRECTION = ['bullish', 'bearish', 'neutral'] as const;

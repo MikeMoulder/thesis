@@ -58,10 +58,24 @@ ${VALUATION_METRICS.map((m) => `  ${m}`).join('\n')}
 
 Liquidity metrics (from the live order book, updated continuously). These test
 whether the position can be CLOSED, not whether the view is right. Use them for
-any assumption about a stop, an exit, or a size. Zero exit depth is a real and
-common reading: an rToken can show a live price and millions of 24h volume with
-nothing at all resting on the bid:
+any assumption about a stop, an exit, or a size:
 ${LIQUIDITY_METRICS.map((m) => `  ${m}`).join('\n')}
+
+FOR "CAN I GET OUT", REACH FOR exitDepthUsd FIRST. This matters more than it
+looks. An rToken can show a live price and millions of 24h volume with nothing
+at all resting on the bid, and the three metrics behave differently there:
+
+  exitDepthUsd      reads 0. A real number, so the breaker FIRES
+  exitSlippageBps   cannot be computed, so the breaker goes quiet
+  spreadBps         cannot be computed, so the breaker goes quiet
+
+An empty book is the worst case, not a missing reading, so pick the metric that
+still speaks when it happens. "exitDepthUsd < 25000" fires on an empty book.
+"exitSlippageBps > 100" says nothing at all on that same book, which is the
+opposite of what the user needs.
+
+Use exitSlippageBps or spreadBps as a SECOND breaker to price the exit when one
+exists. They refine a cost. They do not detect an absence.
 
 ### Units and signs — get these exactly right
 
