@@ -301,25 +301,62 @@ export async function evaluateHistorical(
 
   if (isValuation(breaker.metric)) {
     /*
-      Valuation needs a price AND a filed figure AND a share count, all as they
-      stood on the same past day. That is buildable and worth building, but a
-      wrong base rate is worse than none: pairing today's share count with a
-      2019 price would invent a history that never happened.
+      Valuation over time needs THREE series agreeing about dates: the price on
+      a day, the four quarters of results knowable by that day, and the share
+      count knowable by that day.
 
-      So this says plainly that it does not have the answer, which is the same
-      contract every other unreadable path in this engine honours.
+      Getting this wrong is not a small error. Pairing today's share count with
+      a price from three years ago invents a market value that never existed,
+      and the resulting base rate would look entirely plausible. So every input
+      is selected by its KNOWABLE date, exactly as the historical backfill does,
+      and a day with no filed history behind it yet is skipped rather than
+      filled in.
     */
-    return {
-      breakerId: breaker.id,
-      mode: 'historical',
-      status: 'undeterminable',
-      metric: breaker.metric,
-      reason:
-        'historical base rates are not computed for valuation metrics yet; the live reading is still checked every cycle',
-    };
-  }
+    const [shareSeries, epsSeries, revenueSeries] = await Promise.all([
+      ds.getSharesOutstandingSeries(instrument).catch(() => [] as Array<{ date: string; value: number }>),
+      readFundamentalSeries(ds, instrument, { ...breaker, metric: 'eps' }).catch(() => []),
+      readFundamentalSeries(ds, instrument, { ...breaker, metric: 'revenue' }).catch(() => []),
+    ]);
 
-  if (isFundamental(breaker.metric)) {
+    /*
+      The window is the span we could actually VALUE, not the span of price
+      history. AMD has price bars back to 1984 and filed results in this API
+      back to about 2018; describing the window by the price range would claim
+      four decades of evidence for eight years of it.
+    */
+    let firstValued = '';
+    let lastValued = '';
+
+    let previouslyFired = false;
+    const stride = Math.max(1, Math.ceil(candles.length / 400));
+
+    for (let i = 0; i < candles.length; i++) {
+      const bar = candles[i]!;
+      const on = new Date(bar.ts).toISOString().slice(0, 10);
+      const value = valuationAsAt(breaker.metric, bar.close, on, shareSeries, epsSeries, revenueSeries);
+      if (value === null) continue;
+      examined++;
+      if (!firstValued) firstValued = on;
+      lastValued = on;
+
+      const fired = compare(value, breaker.operator, breaker.threshold);
+      if (i % stride === 0) series.push({ date: on, value, fired });
+
+      if (fired && !previouslyFired) {
+        occurrences.push({
+          date: on,
+          value,
+          forward30d: forwardReturn(candles, bar.ts, 30),
+          forward90d: forwardReturn(candles, bar.ts, 90),
+        });
+      }
+      previouslyFired = fired;
+    }
+
+    windowDescription = firstValued
+      ? `${examined} readings between ${firstValued} and ${lastValued}, each valued against the filings known that day`
+      : 'no day in the price history had four quarters of filed results behind it';
+  } else if (isFundamental(breaker.metric)) {
     const reading = await readFundamentalSeries(ds, instrument, breaker);
     examined = reading.length;
     windowDescription = `${examined} reported quarters`;
@@ -484,3 +521,59 @@ const CONCEPTS: Partial<Record<Metric, string>> = {
   eps: 'eps',
   researchAndDevelopment: 'researchAndDevelopment',
 };
+
+/** Trailing twelve months of a series, as knowable on a given day. */
+function ttmAsAt(
+  series: Array<{ date: string; value: number }>,
+  on: string,
+): number | null {
+  const known = series.filter((p) => p.date <= on);
+  if (known.length < 4) return null;
+  return known.slice(-4).reduce((sum, p) => sum + p.value, 0);
+}
+
+/** The latest single figure knowable on a given day. */
+function latestAsAt(series: Array<{ date: string; value: number }>, on: string): number | null {
+  let found: number | null = null;
+  for (const point of series) {
+    if (point.date > on) break;
+    found = point.value;
+  }
+  return found;
+}
+
+/**
+ * A valuation as it stood on one past day, from inputs knowable on that day.
+ *
+ * Returns null wherever an input is missing rather than substituting a later
+ * one. A base rate computed over a shorter, honest window is worth more than a
+ * longer one with invented numbers in it.
+ */
+export function valuationAsAt(
+  metric: Metric,
+  price: number,
+  on: string,
+  shares: Array<{ date: string; value: number }>,
+  eps: Array<{ date: string; value: number }>,
+  revenue: Array<{ date: string; value: number }>,
+): number | null {
+  if (price <= 0) return null;
+
+  if (metric === 'trailingPE' || metric === 'earningsYield') {
+    const ttm = ttmAsAt(eps, on);
+    if (ttm === null) return null;
+    if (metric === 'earningsYield') return (ttm / price) * 100;
+    // A loss making period has no meaningful multiple. Skipping the day is the
+    // same refusal the live reading makes, applied to history.
+    return ttm > 0 ? price / ttm : null;
+  }
+
+  const count = latestAsAt(shares, on);
+  if (count === null || count <= 0) return null;
+  const cap = price * count;
+  if (metric === 'marketCap') return cap;
+
+  const ttmRevenue = ttmAsAt(revenue, on);
+  if (ttmRevenue === null || ttmRevenue <= 0) return null;
+  return cap / ttmRevenue;
+}

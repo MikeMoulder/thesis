@@ -15,6 +15,7 @@
  */
 import type { DataSource } from '../data/DataSource';
 import type { Instrument } from '../data/types';
+import { valuationAsAt } from '../engine/breakers/evaluate';
 import { readMetric } from '../engine/breakers/metrics';
 import {
   METRIC_SEMANTICS,
@@ -212,6 +213,74 @@ check(
   'the price to earnings convention warns that it is never negative',
   METRIC_SEMANTICS.trailingPE.includes('NEVER NEGATIVE'),
 );
+
+// ---- history: no look ahead ----------------------------------------------
+
+console.log('\nvaluation as at a past day');
+
+{
+  const eps = [
+    { date: '2025-02-01', value: 1 },
+    { date: '2025-05-01', value: 1 },
+    { date: '2025-08-01', value: 1 },
+    { date: '2025-11-01', value: 1 },
+    { date: '2026-02-01', value: 10 },
+  ];
+  const shares = [
+    { date: '2025-02-01', value: 1_000_000_000 },
+    { date: '2026-02-01', value: 2_000_000_000 },
+  ];
+  const revenue = eps.map((p) => ({ ...p, value: p.value * 1e9 }));
+
+  // On 2025-12-01 only the first four quarters had been filed: TTM is 4.
+  const pe = valuationAsAt('trailingPE', 40, '2025-12-01', shares, eps, revenue);
+  check('THE RULE: only filings knowable on the day are used', pe === 10, String(pe));
+
+  // The same day, after the big quarter lands, uses a different TTM.
+  const later = valuationAsAt('trailingPE', 40, '2026-03-01', shares, eps, revenue);
+  check('a later day picks up the newer filing', later !== 10 && later !== null, String(later));
+
+  const capBefore = valuationAsAt('marketCap', 10, '2025-12-01', shares, eps, revenue);
+  check(
+    'the SHARE COUNT is also taken as at the day, never the latest',
+    capBefore === 10_000_000_000,
+    String(capBefore),
+  );
+  const capAfter = valuationAsAt('marketCap', 10, '2026-03-01', shares, eps, revenue);
+  check('and moves when a new count is filed', capAfter === 20_000_000_000, String(capAfter));
+}
+
+{
+  const eps = [
+    { date: '2025-02-01', value: 1 },
+    { date: '2025-05-01', value: 1 },
+  ];
+  check(
+    'a day with fewer than four filed quarters behind it is skipped, not estimated',
+    valuationAsAt('trailingPE', 40, '2025-06-01', [], eps, []) === null,
+  );
+  check(
+    'and a day before any filing at all is skipped',
+    valuationAsAt('trailingPE', 40, '2024-01-01', [], eps, []) === null,
+  );
+}
+
+{
+  const eps = [
+    { date: '2025-02-01', value: -1 },
+    { date: '2025-05-01', value: -1 },
+    { date: '2025-08-01', value: -1 },
+    { date: '2025-11-01', value: -1 },
+  ];
+  check(
+    'a loss making window is skipped for price to earnings, as the live reading refuses it',
+    valuationAsAt('trailingPE', 40, '2025-12-01', [], eps, []) === null,
+  );
+  check(
+    'but earnings yield still computes, and is negative',
+    valuationAsAt('earningsYield', 40, '2025-12-01', [], eps, []) === -10,
+  );
+}
 
 // ---- provenance is honest about the mixture ------------------------------
 
