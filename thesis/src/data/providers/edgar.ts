@@ -221,6 +221,29 @@ export async function getFundamentalSeries(
   concept: string,
   opts: { periodType?: 'quarterly' | 'annual'; limit?: number } = {},
 ): Promise<Sourced<FundamentalPoint[]>> {
+  /*
+    A metric ALIAS ("revenue") resolves through every tag that figure can arrive
+    under; a raw XBRL tag ("GrossProfit") is fetched as named.
+
+    Accepting both keeps the DataSource interface unchanged while giving every
+    caller the merged series. Callers used to pass raw tags with no fallback,
+    which is how a company that changed tags produced a stale reading.
+  */
+  if (isConceptAlias(concept)) {
+    const points = await seriesFor(instrument, concept, opts.limit ?? 12);
+    const latest = points[points.length - 1]!;
+    return sourced(points, {
+      status: latest.derived ? 'inferred' : 'sourced',
+      source: `SEC ${latest.form} ${latest.accession}`,
+      url: filingUrl(requireCik(instrument), latest.accession),
+      asOf: latest.filed,
+      confidence: 'high',
+      ...(points.some((p) => p.derived) && {
+        derivation: 'some periods are reconstructed fiscal Q4 (FY minus Q1-Q3); the rest are as filed',
+      }),
+    });
+  }
+
   const cik = requireCik(instrument);
   const facts = await fetchCompanyFacts(cik);
   const node = findConcept(facts, concept);
@@ -294,29 +317,195 @@ export function filingUrl(cik: string, accession: string): string {
   return `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${bare}/${accession}-index.htm`;
 }
 
-/** Concepts differ by filer; try each in order and use the first that resolves. */
-const CONCEPT_CANDIDATES: Record<string, string[]> = {
-  revenue: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax'],
+/**
+ * Which XBRL tags a figure can arrive under, for filers that do not agree.
+ *
+ * ## Why this is a list and why it is MERGED rather than raced
+ *
+ * Companies change tags. AMD reported revenue as `Revenues` until it adopted
+ * ASC 606, and everything since arrives as
+ * `RevenueFromContractWithCustomerExcludingAssessedTax`. Its `Revenues` node
+ * still exists and still resolves, holding exactly two quarters, both from 2017.
+ *
+ * The previous rule was "try each in order, use the first that resolves", and
+ * for AMD that returned the 2017 figures as the CURRENT revenue: $1.58B against
+ * a real $11.54B, presented with a citation and no warning. Gross margin then
+ * failed outright, because a 2026 gross profit has no 2017 revenue to divide by,
+ * and that failure was the only visible symptom of a silent seven-times error
+ * sitting underneath it.
+ *
+ * So every candidate is fetched and the results are MERGED by period. A filer
+ * that switched tags mid-history gets one continuous series, which is also what
+ * the historical base rates need. Where two tags report the same period, the one
+ * filed most recently wins, on the same principle as a restatement.
+ *
+ * This map is the single source of truth. It used to be copied in three places
+ * (here, `metrics.ts` and `evaluate.ts`) and two of those copies named one tag
+ * each with no fallback at all.
+ */
+export const CONCEPT_CANDIDATES: Record<string, string[]> = {
+  revenue: [
+    'RevenueFromContractWithCustomerExcludingAssessedTax',
+    'RevenueFromContractWithCustomerIncludingAssessedTax',
+    'Revenues',
+    'SalesRevenueNet',
+    'SalesRevenueGoodsNet',
+  ],
   grossProfit: ['GrossProfit'],
   operatingIncome: ['OperatingIncomeLoss'],
-  netIncome: ['NetIncomeLoss'],
+  netIncome: ['NetIncomeLoss', 'ProfitLoss'],
+  eps: ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted'],
+  researchAndDevelopment: ['ResearchAndDevelopmentExpense'],
 };
 
-async function firstAvailable(
+/**
+ * How far behind the filer's own latest reporting a series may fall before it
+ * stops counting as a current reading, in days.
+ *
+ * ## Why a tag that resolves is not automatically a tag that is current
+ *
+ * Merging candidates fixes a filer that MOVED to a new tag, because the new tag
+ * carries newer periods and wins. It does nothing for a tag that was simply
+ * ABANDONED with no replacement in our candidate list. Amazon's `GrossProfit`
+ * node holds four quarters from 2008 and 2009 and nothing since; read straight,
+ * it reported $1.27B of gross profit for a company currently turning over
+ * $200B a quarter, dated to September 2009 and presented as the latest figure.
+ *
+ * Roughly 15 months, so a filer that is merely late, or one whose annual figure
+ * lands well after the quarterly, is not wrongly discarded. Anything further
+ * behind than that is not a reading, it is history.
+ */
+const STALE_AFTER_DAYS = 460;
+
+/** The most recent period this filer has reported anything at all for. */
+async function latestReportedPeriod(instrument: Instrument): Promise<string | null> {
+  const facts = await fetchCompanyFacts(requireCik(instrument));
+  let latest: string | null = null;
+  for (const taxonomy of Object.values(facts.facts ?? {})) {
+    for (const node of Object.values(taxonomy)) {
+      for (const unitFacts of Object.values(node.units ?? {})) {
+        for (const fact of unitFacts) {
+          if (fact.end && (latest === null || fact.end > latest)) latest = fact.end;
+        }
+      }
+    }
+  }
+  return latest;
+}
+
+/** True when this name is one of our metric aliases rather than a raw XBRL tag. */
+export function isConceptAlias(concept: string): boolean {
+  return Object.hasOwn(CONCEPT_CANDIDATES, concept);
+}
+
+/**
+ * Every candidate tag, merged into one series keyed by period end.
+ *
+ * Failures are tolerated: a filer that never used a tag simply contributes
+ * nothing. Only when NO candidate resolves does this throw.
+ */
+async function mergedSeries(
   instrument: Instrument,
   keys: string[],
   limit: number,
 ): Promise<FundamentalPoint[]> {
-  let lastErr: unknown;
-  for (const concept of keys) {
-    try {
-      const r = await getFundamentalSeries(instrument, concept, { limit });
-      return r.value;
-    } catch (err) {
-      lastErr = err;
+  const settled = await Promise.allSettled(
+    keys.map((concept) => getFundamentalSeries(instrument, concept, { limit })),
+  );
+
+  const byEnd = new Map<string, FundamentalPoint>();
+  for (const result of settled) {
+    if (result.status !== 'fulfilled') continue;
+    for (const point of result.value.value) {
+      const existing = byEnd.get(point.end);
+      // Most recently filed wins, exactly as a restatement does.
+      if (!existing || point.firstFiled > existing.firstFiled) byEnd.set(point.end, point);
     }
   }
-  throw lastErr ?? new NoDataError(`No concept matched ${keys.join(', ')}`, 'edgar');
+
+  if (byEnd.size === 0) {
+    const firstError = settled.find((r) => r.status === 'rejected');
+    throw firstError && firstError.status === 'rejected'
+      ? (firstError.reason as Error)
+      : new NoDataError(`No concept matched ${keys.join(', ')}`, 'edgar');
+  }
+
+  return [...byEnd.values()]
+    .sort((a, b) => Date.parse(a.end) - Date.parse(b.end))
+    .slice(-limit);
+}
+
+/** Cost of sales, under whichever tag the filer uses. Used to derive gross profit. */
+const COST_OF_REVENUE = [
+  'CostOfRevenue',
+  'CostOfGoodsAndServicesSold',
+  'CostOfServices',
+  'CostOfGoodsSold',
+];
+
+/**
+ * A metric's series, including the ones that have to be computed.
+ *
+ * `GrossProfit` is not a required line item and plenty of large filers simply
+ * do not tag it. Meta reports revenue and `CostOfRevenue` and no gross profit at
+ * all, so every gross margin question about it came back "nothing can check
+ * this" when the two numbers needed to answer it were sitting right there.
+ *
+ * Subtracting them is arithmetic the filing supports, so it is done here and
+ * MARKED as derived. The alternative is telling a user we cannot see something
+ * we can see.
+ */
+async function seriesFor(
+  instrument: Instrument,
+  key: string,
+  limit: number,
+): Promise<FundamentalPoint[]> {
+  let stale: Error | null = null;
+  try {
+    const points = await mergedSeries(instrument, CONCEPT_CANDIDATES[key] ?? [key], limit);
+
+    // A tag can resolve and still be dead. See STALE_AFTER_DAYS.
+    const reference = await latestReportedPeriod(instrument);
+    const newest = points[points.length - 1]!.end;
+    if (reference && Date.parse(reference) - Date.parse(newest) > STALE_AFTER_DAYS * 86_400_000) {
+      stale = new NoDataError(
+        `${instrument.ticker} last tagged ${key} for ${newest}, but has reported through ` +
+          `${reference}. Treating that tag as abandoned rather than as current.`,
+        'edgar',
+      );
+      throw stale;
+    }
+
+    return points;
+  } catch (err) {
+    if (key !== 'grossProfit') throw err;
+
+    // Gross profit is not reported. Revenue minus cost of sales is the same
+    // figure, and both inputs come from the same filed period.
+    const [revenue, cost] = await Promise.all([
+      mergedSeries(instrument, CONCEPT_CANDIDATES.revenue!, limit),
+      mergedSeries(instrument, COST_OF_REVENUE, limit),
+    ]);
+
+    const costByEnd = new Map(cost.map((c) => [c.end, c]));
+    const out: FundamentalPoint[] = [];
+    for (const r of revenue) {
+      const c = costByEnd.get(r.end);
+      if (!c) continue;
+      out.push({
+        ...r,
+        concept: 'GrossProfit',
+        value: r.value - c.value,
+        derived: true,
+        derivation: `revenue minus ${c.concept}; this filer does not tag GrossProfit`,
+        // Knowable only once BOTH inputs were filed.
+        firstFiled: r.firstFiled > c.firstFiled ? r.firstFiled : c.firstFiled,
+      });
+    }
+
+    if (out.length === 0) throw err;
+    return out;
+  }
 }
 
 const RATIO_INPUTS: Record<DerivedMetricName, [string, string] | null> = {
@@ -339,7 +528,7 @@ export async function getDerivedMetric(
 
   if (metric === 'revenueGrowthYoY') {
     // Needs 4 extra quarters to compare against.
-    const rev = await firstAvailable(instrument, CONCEPT_CANDIDATES.revenue!, limit + 4);
+    const rev = await seriesFor(instrument, 'revenue', limit + 4);
     const out: DerivedMetric[] = [];
     for (let i = 4; i < rev.length; i++) {
       const cur = rev[i]!;
@@ -359,8 +548,8 @@ export async function getDerivedMetric(
   const pair = RATIO_INPUTS[metric]!;
   const [numeratorKey, denominatorKey] = pair;
   const [numerator, denominator] = await Promise.all([
-    firstAvailable(instrument, CONCEPT_CANDIDATES[numeratorKey]!, limit + 4),
-    firstAvailable(instrument, CONCEPT_CANDIDATES[denominatorKey]!, limit + 4),
+    seriesFor(instrument, numeratorKey, limit + 4),
+    seriesFor(instrument, denominatorKey, limit + 4),
   ]);
 
   const denomByEnd = new Map(denominator.map((d) => [d.end, d]));
