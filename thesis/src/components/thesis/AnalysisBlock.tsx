@@ -141,8 +141,12 @@ export function AnalysisBlock({
           <Label className="text-muted">{KIND_LABEL[kind]}</Label>
           {/* The company's mark travels with its ticker. A logo in the sidebar
               that disappears the moment the analysis opens makes the two read
-              as different products. */}
-          <TickerMark ticker={subject} size="title" />
+              as different products.
+
+              `subject` is a DISPLAY string, not always a bare symbol: a
+              scenario's reads "NVDA . grossMargin 62%, revenueGrowthYoY 15%".
+              Only the leading token is the ticker. */}
+          <TickerMark ticker={subject.split(/[\s·]/)[0] ?? ''} size="title" />
           <span data-figure className="text-sm text-text">
             {subject}
           </span>
