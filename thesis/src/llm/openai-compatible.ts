@@ -40,7 +40,14 @@ export class OpenAICompatibleClient implements LlmClient {
     const t0 = Date.now();
     const url = `${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
+    /*
+      opts.extra is spread FIRST so the fields below overwrite it, not the
+      other way round. A provider-specific bag must be able to add a flag its
+      gateway needs; it must not be able to change which model answers or what
+      it is asked, which is exactly what an untyped object spread last allows.
+    */
     const body: Record<string, unknown> = {
+      ...opts.extra,
       model: this.model,
       messages,
       temperature: opts.temperature ?? 0.2,

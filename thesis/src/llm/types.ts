@@ -23,6 +23,19 @@ export interface CompletionOptions {
   json?: boolean;
   /** Abort if the provider has not responded within this many ms. */
   timeoutMs?: number;
+  /**
+   * Provider-specific request fields, merged into the body verbatim.
+   *
+   * An escape hatch, not a feature. The seats run on different gateways and
+   * some of them need a flag that exists nowhere else, so the alternative is
+   * either a union of every provider's quirks on this interface or a second
+   * client class per provider. Both are worse.
+   *
+   * Core fields win: whatever is passed here cannot overwrite model, messages,
+   * temperature or max_tokens. A caller that could silently redirect a seat to
+   * a different model through an untyped bag would be a bug waiting to happen.
+   */
+  extra?: Record<string, unknown>;
 }
 
 export interface CompletionResult {
