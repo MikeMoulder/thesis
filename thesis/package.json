@@ -39,7 +39,8 @@
     "memory:check": "tsx src/scripts/memory-check.ts",
     "cron:check": "tsx src/scripts/cron-check.ts",
     "tg:check": "tsx src/scripts/tg-check.ts",
-    "telegram:selftest": "tsx src/scripts/telegram-selftest.ts"
+    "telegram:selftest": "tsx src/scripts/telegram-selftest.ts",
+    "tg:webhook": "tsx src/scripts/tg-webhook.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
