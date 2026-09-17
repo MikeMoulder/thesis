@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 
 import { BaseRateDisclosure } from '@/components/thesis/BaseRateDisclosure';
@@ -199,12 +200,30 @@ export function Desk({
   const [collapsed, setCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  /*
+    A watchlist row clicked from another screen arrives as ?ticker=NVDA.
+
+    The sidebar is shared now and can be rendered on a page with no Desk under
+    it, where seeding a draft directly is impossible. It carries the ticker in
+    the URL instead and this picks it up, so the row behaves the same wherever
+    it is clicked: it seeds the sentence and leaves the reasoning to the person.
+  */
+  const params = useSearchParams();
+  const handedTicker = params.get('ticker');
+
   useEffect(() => {
     const restored = loadSessions();
     setSessions(restored);
     setActiveId(restored[0]?.id ?? null);
     setCollapsed(loadCollapsed());
   }, []);
+
+  useEffect(() => {
+    if (!handedTicker) return;
+    setActiveId(null);
+    setPendingThesis(null);
+    setDraft(`I'm long ${handedTicker.toUpperCase()} because `);
+  }, [handedTicker]);
 
   useEffect(() => {
     fetch('/api/diag')
