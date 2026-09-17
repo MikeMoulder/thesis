@@ -177,9 +177,14 @@ export function AnalysisBlock({
               </span>
             </>
           ) : null}
-          <span className="ml-auto text-meta text-faint">
-            Research, not advice. You decide.
-          </span>
+          {/*
+            No disclaimer here. Every page that renders this block already
+            carries one of its own — the desk under the composer, the thesis
+            screen and the activity feed at their foot — and a run that
+            produced three blocks printed it four times on one screen. A
+            standing disclaimer repeated until it becomes furniture is a
+            disclaimer nobody reads, which is the opposite of what it is for.
+          */}
         </footer>
       ) : null}
     </section>
