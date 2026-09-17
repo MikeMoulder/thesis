@@ -16,9 +16,11 @@
  *
  * Both produce output that renders perfectly and is wrong.
  */
-import { mergeBreakers } from '../engine/challenge';
-import type { Assumption } from '../engine/decomposer/types';
+import { challenge, mergeBreakers } from '../engine/challenge';
+import { summarise, type Assumption, type Decomposition } from '../engine/decomposer/types';
 import type { BreakerSet, Cadence, Metric, ThesisBreaker } from '../engine/breakers/types';
+import { OpenAICompatibleClient, __setLlm, type LlmClient } from '../llm/index';
+import { IDLE_RUN, applyEvent } from '../lib/run-client';
 
 let pass = 0;
 let fail = 0;
@@ -164,6 +166,178 @@ check(
   String(merged.meta.latencyMs),
 );
 check('the ticker survives the merge', merged.ticker === 'TEST');
+
+// ---------------------------------------------------------------------------
+// What a seat that did not answer is allowed to claim
+//
+// Until 17 Sep 2026 a timed-out challenge still reported its model name, and
+// run.ts folded that straight into the list of models shown under a finished
+// analysis. The footer read "gemini-3.5-flash-lite + qwen3.8-max" on runs where
+// Qwen contributed nothing at all.
+//
+// It rendered perfectly and it was wrong, which is the class of bug this whole
+// file exists for.
+// ---------------------------------------------------------------------------
+
+function seat(behaviour: () => Promise<string>): LlmClient {
+  return {
+    model: 'test-model',
+    label: 'bear/test-model',
+    complete: async () => ({ text: await behaviour(), model: 'test-model', latencyMs: 1 }),
+  };
+}
+
+function decomposition(): Decomposition {
+  const claims = [{ id: 'C1', statement: 'It goes up.', origin: 'stated' as const }];
+  const assumptions: Assumption[] = [
+    {
+      id: 'A1',
+      statement: 'Margins hold',
+      origin: 'stated',
+      supports: ['C1'],
+      loadBearing: 'high',
+      testability: 'fundamental',
+      dataNeeded: 'Gross margin from the next filed quarter',
+      rationale: 'Stated outright',
+    },
+  ];
+  return {
+    ticker: 'TEST',
+    thesis: 'A thesis long enough to be worth attacking, stated plainly.',
+    claims,
+    assumptions,
+    ambiguities: [],
+    summary: summarise(claims, assumptions),
+    meta: { model: 'test', latencyMs: 0, decomposedAt: new Date().toISOString() },
+  };
+}
+
+console.log('\na second opinion that never arrives');
+
+__setLlm('bear', seat(() => Promise.reject(new Error('Could not reach bear/test-model'))));
+const dead = await challenge(decomposition());
+
+check('no model is named', dead.model === null, String(dead.model));
+check('the reason is carried', Boolean(dead.skipped), dead.skipped ?? 'none');
+check('the reason names the seat', (dead.skipped ?? '').includes('bear/test-model'));
+check('nothing is added', dead.added.length === 0);
+check('whyMissed stays empty', Object.keys(dead.whyMissed).length === 0);
+
+console.log('\na second opinion that answers');
+
+__setLlm(
+  'bear',
+  seat(() =>
+    Promise.resolve(
+      JSON.stringify({
+        assumptions: [
+          {
+            statement: 'Demand does not pull forward from next year',
+            origin: 'stated',
+            supports: ['C1'],
+            loadBearing: 'high',
+            testability: 'fundamental',
+            dataNeeded: 'Revenue from the next filed quarter',
+            whyMissed: 'The thesis treats demand as a level, not a schedule',
+          },
+        ],
+      }),
+    ),
+  ),
+);
+const answered = await challenge(decomposition());
+
+check('the model that answered is named', answered.model === 'test-model', String(answered.model));
+check('nothing is marked skipped', answered.skipped === undefined);
+check('the addition survives validation', answered.added.length === 1, String(answered.added.length));
+check(
+  'it is numbered after the assumptions that already existed',
+  answered.added[0]?.id === 'A2',
+  answered.added[0]?.id,
+);
+check(
+  'origin is forced to implicit, whatever the challenger claimed',
+  answered.added[0]?.origin === 'implicit',
+  answered.added[0]?.origin,
+);
+check('why it was missed is kept', Boolean(answered.whyMissed.A2));
+
+__setLlm('bear', null);
+
+// ---------------------------------------------------------------------------
+// The flag that makes this seat work at all
+//
+// enable_thinking rides in on opts.extra, which is an untyped bag. The bag has
+// to be able to add a field the gateway needs, and must NOT be able to change
+// which model answers or what it is asked.
+// ---------------------------------------------------------------------------
+
+console.log('\nthe request the gateway actually receives');
+
+const realFetch = globalThis.fetch;
+let sent: Record<string, unknown> = {};
+globalThis.fetch = (async (_url: string, init: { body: string }) => {
+  sent = JSON.parse(init.body) as Record<string, unknown>;
+  return { ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) };
+}) as unknown as typeof fetch;
+
+await new OpenAICompatibleClient({
+  baseUrl: 'http://example.invalid/v1',
+  apiKey: 'unused',
+  model: 'the-real-model',
+  label: 'test/seat',
+}).complete([{ role: 'user', content: 'the real question' }], {
+  temperature: 0.4,
+  maxTokens: 700,
+  extra: {
+    enable_thinking: false,
+    // Everything below is a hijack attempt, and every one of them must fail.
+    model: 'HIJACKED',
+    messages: [{ role: 'user', content: 'HIJACKED' }],
+    temperature: 9.9,
+    max_tokens: 1,
+  },
+});
+
+globalThis.fetch = realFetch;
+
+check('the provider flag arrives', sent.enable_thinking === false);
+check('extra cannot change the model', sent.model === 'the-real-model', String(sent.model));
+check(
+  'extra cannot change the messages',
+  JSON.stringify(sent.messages) === JSON.stringify([{ role: 'user', content: 'the real question' }]),
+);
+check('extra cannot change the temperature', sent.temperature === 0.4, String(sent.temperature));
+check('extra cannot change max_tokens', sent.max_tokens === 700, String(sent.max_tokens));
+
+// ---------------------------------------------------------------------------
+// A stage that says something keeps what it said
+//
+// applyEvent used to keep only the state and drop the detail, so a stage that
+// gave up rendered as a tick beside four that had succeeded.
+// ---------------------------------------------------------------------------
+
+console.log('\nwhat the client remembers about a stage');
+
+const skipped = applyEvent(IDLE_RUN, {
+  type: 'stage',
+  id: 'challenge',
+  state: 'done',
+  ms: 20_000,
+  detail: 'skipped: Could not reach bear/test-model',
+});
+
+check('the state is recorded', skipped.stages.challenge === 'done');
+check('the detail is recorded too', Boolean(skipped.stageDetail.challenge));
+check(
+  'it is filed under the stage that said it',
+  (skipped.stageDetail.challenge ?? '').startsWith('skipped:'),
+);
+
+const quiet = applyEvent(skipped, { type: 'stage', id: 'evaluate', state: 'done', ms: 5 });
+check('a silent stage does not erase an earlier detail', Boolean(quiet.stageDetail.challenge));
+check('a silent stage adds nothing of its own', quiet.stageDetail.evaluate === undefined);
+check('IDLE_RUN starts with no details', Object.keys(IDLE_RUN.stageDetail).length === 0);
 
 // ---------------------------------------------------------------------------
 
