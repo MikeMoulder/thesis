@@ -186,6 +186,43 @@ export function defineMetric(metric: Metric): Definition {
   return METRIC_GLOSSARY[metric];
 }
 
+/**
+ * A metric's name as a person would say it, for use inside a sentence.
+ *
+ * Engine identifiers leak into user-facing prose surprisingly easily: a data
+ * provider throws "Could not derive grossMargin for AMD" and that string is
+ * shown verbatim under a heading about what to do next. `grossMargin` is a
+ * property name, not a phrase, and camel case in the middle of a sentence tells
+ * a reader they have wandered into somebody else's debug output.
+ *
+ * Falls back to splitting the camel case, so a metric added without a glossary
+ * entry still reads as words rather than as code.
+ */
+export function metricPhrase(metric: string): string {
+  const known = METRIC_GLOSSARY[metric as Metric];
+  if (known) return known.label;
+  return metric
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    .toLowerCase();
+}
+
+/**
+ * Rewrite engine metric identifiers inside a free-text string.
+ *
+ * Matches the KNOWN metric names first, by name, because not all of them are
+ * camel case: `volatility90d` has no capital letter in it and a camel case
+ * pattern walks straight past it. The generic pattern is kept as a fallback for
+ * identifiers that are not metrics at all.
+ */
+export function humaniseMetrics(text: string): string {
+  const names = Object.keys(METRIC_GLOSSARY).sort((a, b) => b.length - a.length);
+  const known = new RegExp('\\b(' + names.join('|') + ')\\b', 'g');
+  return text
+    .replace(known, (match) => metricPhrase(match))
+    .replace(/\b[a-z]+(?:[A-Z][a-zA-Z0-9]*)+\b/g, (match) => metricPhrase(match));
+}
+
 export function defineConcept(key: string): Definition | undefined {
   return CONCEPT_GLOSSARY[key];
 }
