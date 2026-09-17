@@ -1,5 +1,7 @@
 import { Check, LoaderCircle } from 'lucide-react';
 
+import { TickerMark } from '@/components/thesis/TickerMark';
+
 import { cn } from '@/lib/utils';
 
 /**
@@ -132,11 +134,15 @@ export function AnalysisBlock({
     <section
       className={cn('w-full', className)}
       aria-busy={running || undefined}
-      aria-label={`${KIND_LABEL[kind]} — ${subject}`}
+      aria-label={`${KIND_LABEL[kind]}: ${subject}`}
     >
       <header className={cn('border-b pb-3', running ? 'border-line' : 'border-line-strong')}>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Label className="text-muted">{KIND_LABEL[kind]}</Label>
+          {/* The company's mark travels with its ticker. A logo in the sidebar
+              that disappears the moment the analysis opens makes the two read
+              as different products. */}
+          <TickerMark ticker={subject} size="title" />
           <span data-figure className="text-sm text-text">
             {subject}
           </span>

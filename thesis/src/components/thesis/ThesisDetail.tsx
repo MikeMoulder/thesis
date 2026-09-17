@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { BlockSection } from '@/components/thesis/AnalysisBlock';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { TickerMark } from '@/components/thesis/TickerMark';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { formatValue } from '@/engine/breakers/evaluate';
 import { formatRelative, formatStamp, isStale } from '@/lib/format';
@@ -159,7 +160,7 @@ function CheckLog({ thesis }: { thesis: ThesisRecord }) {
       {reconstructed > 0 ? (
         <p className="mb-5 max-w-prose border-l-2 border-trust/40 pl-3 text-base text-trust">
           Reconstructed checks replay these same tripwires over data from before this thesis
-          existed. They show what you WOULD have been told, had you held this belief then — nobody
+          existed. They show what you WOULD have been told, had you held this belief then. Nobody
           was warned at the time, and the thresholds were written later, so the early verdicts judge
           the past by a standard set after it.
         </p>
@@ -254,7 +255,8 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
 
       {/* ---- the header is the verdict, and it leads with the BELIEF ---- */}
       <header className="mt-6 border-b border-line-strong pb-5">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <TickerMark ticker={thesis.ticker} size="title" />
           <span data-figure className="text-sm text-text">
             {thesis.ticker}
           </span>
@@ -325,14 +327,22 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
 
         {breakers.length > 0 ? (
           <BlockSection title="Where each tripwire stands">
-            {breakers.map((breaker) => (
-              <TripwireRow
-                key={breaker.id}
-                breaker={breaker}
-                evaluation={check?.evaluations.find((e) => e.breakerId === breaker.id)}
-                {...(driverFor(check, breaker.id) ? { trend: driverFor(check, breaker.id) } : {})}
-              />
-            ))}
+            {breakers.map((breaker) => {
+              // Point back at the numbered line in the tree above rather than
+              // printing the engine's id for this breaker.
+              const watches =
+                version.decomposition.assumptions.findIndex((a) => a.id === breaker.assumptionRef) +
+                1;
+              return (
+                <TripwireRow
+                  key={breaker.id}
+                  breaker={breaker}
+                  evaluation={check?.evaluations.find((e) => e.breakerId === breaker.id)}
+                  {...(watches > 0 ? { watches } : {})}
+                  {...(driverFor(check, breaker.id) ? { trend: driverFor(check, breaker.id) } : {})}
+                />
+              );
+            })}
           </BlockSection>
         ) : null}
 

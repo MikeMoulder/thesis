@@ -4,6 +4,7 @@ import { formatRelative, isStale } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ThesisSummary } from '@/thesis/types';
 
+import { TickerMark } from './TickerMark';
 import { HEALTH_DOT, HEALTH_TEXT, HEALTH_WORD } from './health-text';
 
 /**
@@ -53,8 +54,11 @@ function ThesisCard({ summary, now }: { summary: ThesisSummary; now: number }) {
         <span className={cn('text-meta uppercase tracking-[0.14em]', HEALTH_TEXT[summary.health])}>
           {HEALTH_WORD[summary.health]}
         </span>
-        <span data-figure className="ml-auto text-sm text-faint">
-          {summary.ticker}
+        <span className="ml-auto flex items-center gap-2">
+          <TickerMark ticker={summary.ticker} size="row" />
+          <span data-figure className="text-sm text-faint">
+            {summary.ticker}
+          </span>
         </span>
       </div>
 
