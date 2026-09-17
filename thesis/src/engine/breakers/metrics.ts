@@ -1,10 +1,19 @@
 import type { DataSource } from '../../data/DataSource';
-import { NoDataError, type Candle, type Instrument, type Provenance } from '../../data/types';
+import {
+  NoDataError,
+  type Candle,
+  type Instrument,
+  type OrderBook,
+  type Provenance,
+} from '../../data/types';
 import { knowableFrom } from './evaluate';
 import {
+  EXIT_REFERENCE_NOTIONAL_USD,
   FUNDAMENTAL_METRICS,
+  LIQUIDITY_METRICS,
   VALUATION_METRICS,
   type FundamentalMetric,
+  type LiquidityMetric,
   type Metric,
   type PriceMetric,
   type ValuationMetric,
@@ -34,6 +43,127 @@ export function isFundamental(metric: Metric): metric is FundamentalMetric {
 
 export function isValuation(metric: Metric): metric is ValuationMetric {
   return (VALUATION_METRICS as readonly string[]).includes(metric);
+}
+
+export function isLiquidity(metric: Metric): metric is LiquidityMetric {
+  return (LIQUIDITY_METRICS as readonly string[]).includes(metric);
+}
+
+// ---------------------------------------------------------------------------
+// Liquidity: whether the position can be closed
+// ---------------------------------------------------------------------------
+
+/**
+ * The reference price a liquidity reading is measured against.
+ *
+ * Normally the mid. When one side is missing there is no mid, and the best bid
+ * stands in: it is the only price anyone has committed to, and refusing to
+ * answer would lose the distinction that matters most, which is zero depth
+ * against some depth. Returns null only when nothing is bid, where every
+ * liquidity question is either zero or unanswerable anyway.
+ */
+function referencePrice(book: OrderBook): number | null {
+  const ask = book.asks[0]?.price;
+  const bid = book.bids[0]?.price;
+  if (ask != null && bid != null) return (ask + bid) / 2;
+  return bid ?? null;
+}
+
+/**
+ * One liquidity metric from one book snapshot. Pure, so it can be tested
+ * against hand-built books rather than against whatever the market is doing.
+ *
+ * Returns null for genuinely unanswerable readings and 0 where zero is the
+ * true answer. That distinction is the whole point of this function:
+ *
+ *   spreadBps        null when either side is empty. A spread needs two sides,
+ *                    and calling a one-sided book "0 spread" would read as
+ *                    perfectly liquid when it is the opposite.
+ *   exitDepthUsd     0 when nothing is bid. This is a real measurement and the
+ *                    single most important number here.
+ *   exitSlippageBps  null when the book cannot absorb the reference notional.
+ *                    The caller reports what WAS available, which says more
+ *                    than any number this could return.
+ */
+export function computeLiquidityMetric(book: OrderBook, metric: LiquidityMetric): number | null {
+  const ask = book.asks[0]?.price;
+  const bid = book.bids[0]?.price;
+
+  if (metric === 'spreadBps') {
+    if (ask == null || bid == null) return null;
+    const mid = (ask + bid) / 2;
+    if (mid <= 0) return null;
+    return ((ask - bid) / mid) * 10_000;
+  }
+
+  const reference = referencePrice(book);
+  if (reference == null || reference <= 0) return metric === 'exitDepthUsd' ? 0 : null;
+
+  if (metric === 'exitDepthUsd') {
+    const floor = reference * 0.99;
+    return book.bids
+      .filter((level) => level.price >= floor)
+      .reduce((sum, level) => sum + level.price * level.size, 0);
+  }
+
+  // exitSlippageBps: walk the bids selling the reference notional, and compare
+  // the average price actually achieved against the reference.
+  let remaining = EXIT_REFERENCE_NOTIONAL_USD;
+  let tokensSold = 0;
+  let proceeds = 0;
+  for (const level of book.bids) {
+    const available = level.price * level.size;
+    const take = Math.min(remaining, available);
+    tokensSold += take / level.price;
+    proceeds += take;
+    remaining -= take;
+    if (remaining <= 0) break;
+  }
+  // Unfilled means the book is thinner than the trade. Not a number.
+  if (remaining > 0 || tokensSold <= 0) return null;
+  const achieved = proceeds / tokensSold;
+  return ((reference - achieved) / reference) * 10_000;
+}
+
+/** Dollars actually bid within 1% of reference, used to explain a null exit cost. */
+export function availableExitUsd(book: OrderBook): number {
+  return computeLiquidityMetric(book, 'exitDepthUsd') ?? 0;
+}
+
+async function readLiquidity(
+  ds: DataSource,
+  instrument: Instrument,
+  metric: LiquidityMetric,
+): Promise<MetricReading> {
+  if (!instrument.rTokenSymbol) {
+    throw new NoDataError(
+      `${instrument.ticker} has no rToken listed on Bitget, so there is no book to read`,
+      'bitget',
+    );
+  }
+
+  const book = await ds.getOrderBook(instrument);
+  const value = computeLiquidityMetric(book.value, metric);
+
+  if (value === null) {
+    const sides = `${book.value.asks.length} asks / ${book.value.bids.length} bids`;
+    const detail =
+      metric === 'spreadBps'
+        ? `${book.value.symbol} has no two-sided market right now (${sides})`
+        : `${book.value.symbol} has only ${Math.round(availableExitUsd(book.value)).toLocaleString()} USD bid within 1%, less than the ${EXIT_REFERENCE_NOTIONAL_USD.toLocaleString()} USD an exit is costed against (${sides})`;
+    throw new NoDataError(detail, 'bitget');
+  }
+
+  return {
+    metric,
+    value,
+    asOf: new Date(book.value.ts).toISOString(),
+    provenance: {
+      ...book.provenance,
+      status: 'inferred',
+      derivation: `${metric} computed from ${book.value.asks.length} asks and ${book.value.bids.length} bids resting on Bitget spot`,
+    },
+  };
 }
 
 /**
@@ -268,6 +398,8 @@ export async function readMetric(
   }
 
   if (isValuation(metric)) return readValuation(ds, instrument, metric);
+
+  if (isLiquidity(metric)) return readLiquidity(ds, instrument, metric);
 
   const priceMetric = metric as PriceMetric;
 

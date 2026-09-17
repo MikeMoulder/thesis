@@ -77,6 +77,36 @@ export type PriceMetric =
 export type ValuationMetric = 'marketCap' | 'trailingPE' | 'priceToSales' | 'earningsYield';
 
 /**
+ * Whether the position can actually be closed, read from resting depth.
+ *
+ * Its own category because it tests a different KIND of claim. Fundamental,
+ * price and valuation metrics all test whether the user is RIGHT. These test
+ * whether being right would pay, which is a separate question and the one
+ * every thesis assumes without stating.
+ *
+ * The gap is specific to tokenized equities and it is large. Bitget lists 1655
+ * rTokens; half the household names among them carry a live price and real
+ * 24 hour volume above a completely empty book. rNFLX quoted 76.92 with 12.4M
+ * of volume and zero resting orders on 17 Sep 2026. A stop placed there cannot
+ * fill, and no price feed, chart or filing would ever say so.
+ *
+ * Read from the order book alone, so they move continuously and are only ever
+ * as good as the instant they were sampled. A book is not a promise.
+ */
+export type LiquidityMetric = 'spreadBps' | 'exitDepthUsd' | 'exitSlippageBps';
+
+/**
+ * The notional an exit is costed against, in USD.
+ *
+ * Fixed rather than taken from the thesis, because a thesis states a view and
+ * almost never states a size. A constant makes the number comparable across
+ * instruments, which is what makes "rNVDA costs 0.4bps to exit and rKO costs
+ * 44.7" a usable sentence. It is declared in METRIC_SEMANTICS so the model
+ * writes thresholds against a size it can see.
+ */
+export const EXIT_REFERENCE_NOTIONAL_USD = 25_000;
+
+/**
  * Sign and unit conventions. These are contractual — the generator writes
  * thresholds against them and the evaluator compares against them, so an
  * unstated convention produces a breaker that silently never fires (or always
@@ -106,9 +136,15 @@ export const METRIC_SEMANTICS: Record<Metric, string> = {
     'market capitalisation divided by the last four quarters of revenue, as a multiple. 12 means the shares cost 12 times annual sales',
   earningsYield:
     'the last four quarters of earnings as a percent of the share price, which is the inverse of trailing P/E. 3 means 3%. Negative when the company is loss-making',
+  spreadBps:
+    'gap between the best bid and the best offer, in basis points of the mid price. ALWAYS POSITIVE and higher is worse: 1 means a tenth of a percent to cross, 50 means half a percent. Unavailable when either side of the book is empty, because a spread needs two sides',
+  exitDepthUsd:
+    'US dollars of resting BIDS within 1% below the mid price, i.e. what could be sold right now without moving the price more than 1%. Higher is better. ZERO IS A VALID AND COMMON READING and means nothing is bid at all, so a sell has nothing to fill against',
+  exitSlippageBps:
+    'realised cost of selling 25000 USD into the resting bids, in basis points below mid. ALWAYS POSITIVE and higher is worse. Unavailable when the book holds less than that, which is itself the finding',
 };
 
-export type Metric = FundamentalMetric | PriceMetric | ValuationMetric;
+export type Metric = FundamentalMetric | PriceMetric | ValuationMetric | LiquidityMetric;
 
 export const VALUATION_METRICS: readonly ValuationMetric[] = [
   'marketCap',
@@ -136,6 +172,12 @@ export const PRICE_METRICS: readonly PriceMetric[] = [
   'return90d',
   'drawdownFromHigh',
   'volatility90d',
+];
+
+export const LIQUIDITY_METRICS: readonly LiquidityMetric[] = [
+  'spreadBps',
+  'exitDepthUsd',
+  'exitSlippageBps',
 ];
 
 /** Percent-valued metrics; thresholds are read as percentages, not ratios. */

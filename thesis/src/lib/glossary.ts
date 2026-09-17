@@ -120,6 +120,24 @@ export const METRIC_GLOSSARY: Record<Metric, Definition> = {
     why: 'Not direction — size of movement. High volatility means large moves in both directions.',
     typical: 'A steady large company runs 15–25%. A fast-moving tech share can run 40–60%.',
   },
+  spreadBps: {
+    label: 'spread',
+    short: 'The gap between the best price someone will buy at and the best price someone will sell at.',
+    why: 'You pay half of it going in and half coming out. It is the toll for entering a position at all.',
+    typical: 'rNVDA runs under 1 basis point. Thinner rTokens run 15 to 20, which is twenty times the cost.',
+  },
+  exitDepthUsd: {
+    label: 'exit depth',
+    short: 'How many dollars of real buy orders are sitting close enough to sell into right now.',
+    why: 'This is the money that would actually be there if you tried to get out. Zero means nobody is bidding, whatever the price on the screen says.',
+    typical: 'rNVDA has around 830,000 dollars waiting. Half the listed rTokens have nothing at all.',
+  },
+  exitSlippageBps: {
+    label: 'exit cost',
+    short: 'What it would really cost to sell 25,000 dollars right now, compared with the price on screen.',
+    why: 'The screen price is for a tiny trade. This is the price for your trade, and on a thin book the two are not close.',
+    typical: 'rNVDA costs about 0.4 basis points. rKO costs about 45, which is a hundred times more.',
+  },
 };
 
 /** Vocabulary the product itself invents, which needs explaining just as much. */

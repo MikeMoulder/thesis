@@ -1,6 +1,13 @@
 import type { DataSource } from '../../data/DataSource';
 import { NoDataError, type Candle, type Instrument, type Provenance } from '../../data/types';
-import { computePriceMetric, getPriceSeries, isFundamental, isValuation, readMetric } from './metrics';
+import {
+  computePriceMetric,
+  getPriceSeries,
+  isFundamental,
+  isLiquidity,
+  isValuation,
+  readMetric,
+} from './metrics';
 import {
   PERCENT_METRICS,
   type Metric,
@@ -284,6 +291,28 @@ export async function evaluateHistorical(
       mode: 'historical',
       status: 'undeterminable',
       reason: 'event breakers need a searchable news archive; none is wired',
+    };
+  }
+
+  /*
+    Liquidity has no past here, and inventing one would be the worst kind of
+    wrong: plausible. Exchanges publish the CURRENT book and nothing else, so
+    "how often has this had no bid?" can only be answered from snapshots we
+    recorded ourselves, and we have not been recording them. Deriving depth
+    from historical volume would look like an answer and would not be one,
+    because volume says a trade happened, not that a bid was waiting.
+
+    So this reports that the question is open rather than guessing at it. Once
+    the recheck loop has stored book snapshots for a while, this becomes
+    answerable the same way the autopsy already is.
+  */
+  if (isLiquidity(breaker.metric)) {
+    return {
+      breakerId: breaker.id,
+      mode: 'historical',
+      status: 'undeterminable',
+      reason:
+        'order books are only published as they stand right now, so there is no history to take a base rate from. This one can only be watched forward.',
     };
   }
 
