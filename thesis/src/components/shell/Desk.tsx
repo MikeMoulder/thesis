@@ -8,6 +8,7 @@ import { AnalysisBlock, BlockSection, type BlockStage } from '@/components/thesi
 import { AssumptionDiagram } from '@/components/thesis/AssumptionDiagram';
 import { RunHeadline } from '@/components/thesis/RunHeadline';
 import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
 import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
@@ -18,6 +19,7 @@ import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
 import { cn } from '@/lib/utils';
+import type { ThesisSummary } from '@/thesis/types';
 
 /**
  * The research desk.
@@ -162,7 +164,30 @@ const FOLLOWUP_CHIPS = [
   'Which tripwire is closest to firing?',
 ];
 
-export function Desk() {
+export function Desk({
+  theses = [],
+  now,
+}: {
+  /**
+   * Theses already under observation, read from the store on the server.
+   *
+   * Passed in rather than fetched here so the front door arrives POPULATED on
+   * first paint. A list of the beliefs you are on the hook for is the one
+   * screen that must not appear empty and then fill in, because an empty state
+   * that resolves into four cards reads, for the half second it lasts, exactly
+   * like having no theses at all.
+   */
+  theses?: ThesisSummary[];
+  /** Server clock, so relative times do not differ across hydration. */
+  now?: number;
+} = {}) {
+  /*
+    One clock read for the life of this render tree, used only when no server
+    clock was passed. Calling Date.now() inline would give a different answer on
+    the server and in the browser and produce a hydration mismatch on the one
+    number that has to be trustworthy.
+  */
+  const [renderedAt] = useState(() => Date.now());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -412,7 +437,9 @@ export function Desk() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1 overflow-y-auto">
-          {!active ? <DotPattern /> : null}
+          {/* The dot field is for an EMPTY desk. With theses on screen it is
+              texture behind content, which is noise. */}
+          {!active && theses.length === 0 ? <DotPattern /> : null}
           <div
             className={cn(
               'relative mx-auto flex max-w-2xl flex-col gap-10 px-6',
@@ -422,7 +449,7 @@ export function Desk() {
             {active ? (
               active.turns.map((turn) => <TurnView key={turn.id} turn={turn} />)
             ) : (
-              <EmptyState pendingThesis={pendingThesis} />
+              <EmptyState pendingThesis={pendingThesis} theses={theses} now={now ?? renderedAt} />
             )}
             <div ref={bottomRef} />
           </div>
@@ -474,7 +501,15 @@ export function Desk() {
  * like it is admiring its own phrasing. The screen has one job: make it obvious
  * what to type.
  */
-function EmptyState({ pendingThesis }: { pendingThesis: string | null }) {
+function EmptyState({
+  pendingThesis,
+  theses,
+  now,
+}: {
+  pendingThesis: string | null;
+  theses: ThesisSummary[];
+  now: number;
+}) {
   if (pendingThesis) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -485,6 +520,29 @@ function EmptyState({ pendingThesis }: { pendingThesis: string | null }) {
           I could not find a ticker in what you wrote. Type one, like NVDA, so I look at the right
           company.
         </Prose>
+      </div>
+    );
+  }
+
+  /*
+    With theses on file the landing is the LIST, not the invitation.
+
+    A returning user does not need to be asked what their trade is. They have
+    already told us, and the useful thing to put in front of them is what has
+    happened to those beliefs since they last looked. The invitation is still
+    there, in the composer at the foot of the screen, which is where starting a
+    new one belongs.
+  */
+  if (theses.length > 0) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <h2 className="max-w-[24ch] text-[1.75rem] font-normal leading-[1.2] tracking-[-0.02em] text-text">
+          Keep your thesis accountable.
+        </h2>
+        <Prose className="mt-3 max-w-[52ch] text-sm">
+          You wrote these down and said what would prove you wrong. Here is where each one stands.
+        </Prose>
+        <MyTheses theses={theses} now={now} className="mt-9" />
       </div>
     );
   }
