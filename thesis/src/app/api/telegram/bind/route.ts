@@ -1,3 +1,8 @@
+import { cookies } from 'next/headers';
+
+import { IDENTITY_COOKIE, IDENTITY_COOKIE_OPTIONS, ownerFromRequest, signOwnerId } from '@/lib/identity';
+import { transferTheses } from '@/thesis/ownership';
+import { getStore } from '@/thesis/store';
 import { getBindingStore } from '@/telegram/bindings';
 import { botToken, getMe } from '@/telegram/client';
 
@@ -42,14 +47,16 @@ async function botUsername(): Promise<string | null> {
   return username;
 }
 
-function sessionFrom(request: Request): string | null {
-  const value = new URL(request.url).searchParams.get('session')?.trim();
-  return value ? value : null;
-}
+/*
+  WHO IS BINDING
 
-/** A session id is opaque to us, but it is a key, so it gets a shape. */
-function validSession(id: string): boolean {
-  return /^[A-Za-z0-9_-]{8,64}$/.test(id);
+  This used to be a random id the browser kept in localStorage and sent with
+  every call. It is now the signed identity cookie, read on the server, so the
+  browser no longer names itself: a caller cannot ask about, bind or unbind a
+  session that is not its own.
+*/
+function noIdentity(): Response {
+  return Response.json({ error: 'No identity on this request. Reload the page.' }, { status: 401 });
 }
 
 function disabled(): Response {
@@ -67,17 +74,8 @@ function disabled(): Response {
 export async function POST(request: Request): Promise<Response> {
   if (!botToken()) return disabled();
 
-  let body: { sessionId?: unknown };
-  try {
-    body = (await request.json()) as { sessionId?: unknown };
-  } catch {
-    return Response.json({ error: 'Body must be JSON.' }, { status: 400 });
-  }
-
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  if (!validSession(sessionId)) {
-    return Response.json({ error: 'sessionId must be 8 to 64 url-safe characters.' }, { status: 400 });
-  }
+  const sessionId = await ownerFromRequest(request);
+  if (!sessionId) return noIdentity();
 
   try {
     const pending = await getBindingStore().createCode(sessionId);
@@ -108,13 +106,29 @@ export async function POST(request: Request): Promise<Response> {
 export async function GET(request: Request): Promise<Response> {
   if (!botToken()) return disabled();
 
-  const sessionId = sessionFrom(request);
-  if (!sessionId || !validSession(sessionId)) {
-    return Response.json({ error: 'A valid session query parameter is required.' }, { status: 400 });
-  }
+  let sessionId = await ownerFromRequest(request);
+  if (!sessionId) return noIdentity();
 
   try {
-    const binding = await getBindingStore().bySession(sessionId);
+    const store = getBindingStore();
+
+    /*
+      SIGN-IN, the browser's half. The bot left a grant here when this
+      browser's code arrived from a chat that already belongs to someone. This
+      browser becomes that someone: its cookie is re-issued, and anything it
+      wrote while anonymous moves across rather than being stranded under an
+      id nobody will present again.
+    */
+    let signedIn = false;
+    const adopted = await store.takeSignIn(sessionId);
+    if (adopted && adopted !== sessionId) {
+      await transferTheses(getStore(), sessionId, adopted);
+      (await cookies()).set(IDENTITY_COOKIE, await signOwnerId(adopted), IDENTITY_COOKIE_OPTIONS);
+      sessionId = adopted;
+      signedIn = true;
+    }
+
+    const binding = await store.bySession(sessionId);
     return Response.json(
       binding
         ? {
@@ -124,8 +138,9 @@ export async function GET(request: Request): Promise<Response> {
             muted: binding.muted,
             notified: binding.notified,
             boundAt: binding.boundAt,
+            signedIn,
           }
-        : { configured: true, bound: false },
+        : { configured: true, bound: false, signedIn },
       { headers: { 'cache-control': 'no-store' } },
     );
   } catch (error) {
@@ -141,10 +156,8 @@ export async function GET(request: Request): Promise<Response> {
 export async function DELETE(request: Request): Promise<Response> {
   if (!botToken()) return disabled();
 
-  const sessionId = sessionFrom(request);
-  if (!sessionId || !validSession(sessionId)) {
-    return Response.json({ error: 'A valid session query parameter is required.' }, { status: 400 });
-  }
+  const sessionId = await ownerFromRequest(request);
+  if (!sessionId) return noIdentity();
 
   try {
     const store = getBindingStore();

@@ -98,7 +98,9 @@ async function run(request: Request): Promise<Response> {
     */
     let telegram;
     try {
-      telegram = await deliverAlerts(report, getBindingStore(), url.origin);
+      // Each alert goes only to its thesis's owner, or to example followers.
+      const owners = new Map((await getStore().list()).map((t) => [t.id, t.ownerId ?? null]));
+      telegram = await deliverAlerts(report, getBindingStore(), url.origin, (id) => owners.get(id));
     } catch (error) {
       telegram = { error: error instanceof Error ? error.message : String(error) };
     }

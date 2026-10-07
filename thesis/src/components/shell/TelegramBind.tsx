@@ -19,17 +19,19 @@ import { cn } from '@/lib/utils';
  * reach you. An alerts control filed under settings would be a feature; here
  * it reads as part of the promise.
  *
- * THE SESSION ID IS A BROWSER IDENTITY, NOT A USER ACCOUNT
+ * IT IS ALSO HOW YOU SIGN IN
  *
- * There are no accounts in this product. The id is a random string in
- * localStorage whose only job is to let the desk ask "has my code been
- * redeemed yet". It is never a chat id, and the desk is never told one: a
- * browser that could name a chat could subscribe it without asking, and the
- * code exists so the person holding the Telegram account is the one who says
- * yes.
+ * The browser is identified by a signed cookie the server sets (see
+ * lib/identity.ts), so this component never names itself. Binding a chat that
+ * is already bound on another device does not steal it: it signs THIS browser
+ * in as that person, and the server answers the next poll with `signedIn`.
+ * The page then reloads, because everything on it was rendered for the
+ * anonymous visitor this browser just stopped being.
+ *
+ * The desk is never told a chat id: a browser that could name a chat could
+ * subscribe it without asking, and the code exists so the person holding the
+ * Telegram account is the one who says yes.
  */
-
-const SESSION_KEY = 'thesis.telegram.session.v1';
 
 /** Fast enough to feel instant when the user comes back from Telegram. */
 const POLL_MS = 2_500;
@@ -43,6 +45,8 @@ interface Status {
   chatName?: string;
   muted?: boolean;
   notified?: number;
+  /** This poll completed a sign-in: the browser is now someone else. */
+  signedIn?: boolean;
 }
 
 interface Pending {
@@ -51,45 +55,24 @@ interface Pending {
   bot: string | null;
 }
 
-/**
- * A stable id for this browser.
- *
- * Every access is guarded. Storage throws in private windows and comes back
- * empty once site data is cleared, and the control has to render either way:
- * without an id it simply cannot offer to bind, which is a correct outcome
- * rather than a crash.
- */
-function loadSession(): string | null {
-  try {
-    const existing = localStorage.getItem(SESSION_KEY);
-    if (existing) return existing;
-    const created = crypto.randomUUID().replace(/-/g, '');
-    localStorage.setItem(SESSION_KEY, created);
-    return created;
-  } catch {
-    return null;
-  }
-}
-
 export function TelegramBind() {
-  const [session, setSession] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const startedAt = useRef(0);
 
-  // Read on mount rather than in the initial state, so the server render and
-  // the first client render agree. The same reason the panel does it.
-  useEffect(() => setSession(loadSession()), []);
-
-  const refresh = useCallback(async (id: string): Promise<boolean> => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`/api/telegram/bind?session=${encodeURIComponent(id)}`);
+      const response = await fetch('/api/telegram/bind');
       const data = (await response.json()) as Status & { error?: string };
       if (!response.ok) {
         setStatus({ configured: data.configured ?? false, bound: false });
         return false;
+      }
+      if (data.signedIn) {
+        window.location.reload();
+        return true;
       }
       setStatus(data);
       return Boolean(data.bound);
@@ -99,14 +82,14 @@ export function TelegramBind() {
   }, []);
 
   useEffect(() => {
-    if (session) void refresh(session);
-  }, [session, refresh]);
+    void refresh();
+  }, [refresh]);
 
   // Poll only while a code is outstanding. A control that polls forever is a
   // request every 2.5 seconds for the whole time a tab is open, on a page a
   // user may leave running all day.
   useEffect(() => {
-    if (!session || !pending) return;
+    if (!pending) return;
     startedAt.current = Date.now();
 
     const timer = setInterval(() => {
@@ -114,23 +97,19 @@ export function TelegramBind() {
         setPending(null);
         return;
       }
-      void refresh(session).then((bound) => {
+      void refresh().then((bound) => {
         if (bound) setPending(null);
       });
     }, POLL_MS);
 
     return () => clearInterval(timer);
-  }, [session, pending, refresh]);
+  }, [pending, refresh]);
 
   const connect = async () => {
-    if (!session || busy) return;
+    if (busy) return;
     setBusy(true);
     try {
-      const response = await fetch('/api/telegram/bind', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId: session }),
-      });
+      const response = await fetch('/api/telegram/bind', { method: 'POST' });
       const data = (await response.json()) as Pending & { configured?: boolean };
       if (response.ok && data.code) {
         setPending({ code: data.code, deepLink: data.deepLink ?? null, bot: data.bot ?? null });
@@ -145,10 +124,10 @@ export function TelegramBind() {
   };
 
   const disconnect = async () => {
-    if (!session || busy) return;
+    if (busy) return;
     setBusy(true);
     try {
-      await fetch(`/api/telegram/bind?session=${encodeURIComponent(session)}`, { method: 'DELETE' });
+      await fetch('/api/telegram/bind', { method: 'DELETE' });
       setStatus({ configured: true, bound: false });
       setPending(null);
     } catch {
@@ -173,7 +152,6 @@ export function TelegramBind() {
   // Not configured on this deployment. Say nothing rather than offer a button
   // that cannot work: an alerts control that fails is worse than no control.
   if (status && !status.configured) return null;
-  if (!session) return null;
 
   // -------------------------------------------------------------------------
 
@@ -182,7 +160,9 @@ export function TelegramBind() {
       <div className="flex items-center gap-2.5 px-3 pt-2">
         <Send aria-hidden className="size-3 shrink-0 text-muted" />
         <span className="min-w-0 flex-1 truncate text-meta leading-tight text-faint">
-          {status.muted ? 'Alerts paused in Telegram' : `Alerts to ${status.chatName}`}
+          {status.muted
+            ? `Signed in as ${status.chatName} · alerts paused`
+            : `Signed in as ${status.chatName} · alerts on`}
         </span>
         <button
           type="button"
@@ -230,7 +210,10 @@ export function TelegramBind() {
           </a>
         ) : null}
 
-        <p className="text-meta leading-tight text-faint">Waiting. Expires in 10 minutes.</p>
+        <p className="text-meta leading-tight text-faint">
+          Waiting. Expires in 10 minutes. Already connected on another device? This signs you in
+          as that account.
+        </p>
       </div>
     );
   }
@@ -246,7 +229,7 @@ export function TelegramBind() {
       )}
     >
       <Send aria-hidden className="size-3 shrink-0" />
-      <span>{busy ? 'getting a code…' : 'Send alerts to Telegram'}</span>
+      <span>{busy ? 'getting a code…' : 'Sign in with Telegram'}</span>
     </button>
   );
 }

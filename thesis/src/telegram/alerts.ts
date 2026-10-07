@@ -32,6 +32,7 @@
 import { formatValue } from '../engine/breakers/evaluate';
 import { metricPhrase } from '../lib/glossary';
 import type { RecheckReport } from '../thesis/recheck';
+import { isOwnerId } from '../lib/identity';
 import { HEALTH_RANK, type Health } from '../thesis/types';
 import type { Binding, BindingStore } from './bindings';
 import { esc, sendMessage } from './client';
@@ -243,10 +244,28 @@ export interface DeliveryReport {
  * Never throws. This runs inside the recheck, and the recheck is the product:
  * a Telegram outage must cost the user their notification, not their check.
  */
+/**
+ * Whether a chat should hear about a thesis.
+ *
+ * A thesis with an owner goes to the chat bound to that owner and nowhere
+ * else. Before identities, every bound chat got every thesis's alerts,
+ * which once strangers could add theses meant strangers' positions arriving
+ * on your phone. Examples go to chats that follow them.
+ */
+export function shouldReceive(binding: Binding, owner: string | null | undefined): boolean {
+  if (owner) return binding.sessionId === owner;
+  return binding.followsExamples ?? !isOwnerId(binding.sessionId);
+}
+
 export async function deliverAlerts(
   report: RecheckReport,
   bindings: BindingStore,
   baseUrl?: string,
+  /**
+   * Who owns each thesis. Omitted, every chat gets every alert, which is how
+   * this behaved before identities and how the older tests exercise it.
+   */
+  ownerOf?: (thesisId: string) => string | null | undefined,
 ): Promise<DeliveryReport> {
   const alerts = buildAlerts(report, baseUrl);
   const result: DeliveryReport = {
@@ -273,12 +292,16 @@ export async function deliverAlerts(
       result.muted += 1;
       continue;
     }
+    const mine = ownerOf
+      ? alerts.filter((a) => shouldReceive(binding, ownerOf(a.thesisId)))
+      : alerts;
+    if (mine.length === 0) continue;
     result.recipients += 1;
 
     let delivered = 0;
     let fatal = false;
 
-    for (const alert of alerts) {
+    for (const alert of mine) {
       const sent = await sendMessage(binding.chatId, alert.html);
       if (sent.ok) {
         delivered += 1;

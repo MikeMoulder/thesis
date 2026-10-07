@@ -15,7 +15,9 @@
 import type { ThesisStore } from '../thesis/store';
 import { summariseThesis } from '../thesis/types';
 import type { BindingStore } from './bindings';
-import { normaliseCode } from './bindings';
+import { newBinding, normaliseCode, type Binding } from './bindings';
+import { shouldReceive } from './alerts';
+import { isOwnerId } from '../lib/identity';
 import { esc, type TelegramChat } from './client';
 
 /** How the cron is configured on the VPS. Stated so /status can say it. */
@@ -25,7 +27,7 @@ export interface CommandResult {
   /** HTML, ready to send. */
   reply: string;
   /** For the route's log line. Never includes the chat's content. */
-  action: 'bound' | 'rejected' | 'muted' | 'resumed' | 'status' | 'help';
+  action: 'bound' | 'signedin' | 'rejected' | 'muted' | 'resumed' | 'status' | 'help';
 }
 
 function ago(iso: string | undefined): string {
@@ -49,7 +51,7 @@ const HELP = [
   '',
   'I watch investment theses and tell you when one breaks.',
   '',
-  'To connect, open your desk and press <b>Send alerts to Telegram</b>.',
+  'To connect, open your desk and press <b>Sign in with Telegram</b>.',
   'It shows a six character code. Send it here.',
   '',
   '<code>/bind CODE</code>  connect this chat to your desk',
@@ -59,15 +61,19 @@ const HELP = [
 ].join('\n');
 
 /**
- * Everything under observation, newest first.
+ * What this chat is watching: its owner's theses, plus the examples if it
+ * follows them. The same rule alerts are routed by, so /status never lists a
+ * thesis the chat would not be told about.
  *
  * Escaping happens once, in `table`, and nowhere else. Escaping per cell in
  * one place and per block in another is how a double-escaped "&amp;amp;"
  * eventually reaches a user.
  */
-async function watching(theses: ThesisStore) {
+async function watching(theses: ThesisStore, binding: Binding) {
   const all = await theses.list();
-  return all.filter((t) => t.status !== 'retired').map(summariseThesis);
+  return all
+    .filter((t) => t.status !== 'retired' && shouldReceive(binding, t.ownerId ?? null))
+    .map(summariseThesis);
 }
 
 function table(rows: Array<{ ticker: string; health: string }>): string {
@@ -121,7 +127,7 @@ export async function handleCommand(
           reply: [
             '<b>Alerts resumed.</b>',
             '',
-            `Watching ${(await watching(theses)).length} theses, re-checked ${CADENCE_LABEL}.`,
+            `Watching ${(await watching(theses, existing)).length} theses, re-checked ${CADENCE_LABEL}.`,
             'Silence means nothing moved.',
           ].join('\n'),
           action: 'resumed',
@@ -133,20 +139,48 @@ export async function handleCommand(
       return { reply: HELP, action: 'help' };
     }
 
-    const bound = await bindings.redeem(code, chat.id, chatName(chat));
-    if (!bound) {
+    const claimed = await bindings.claim(code);
+    if (!claimed) {
       return {
         reply: [
           '<b>That code is not valid.</b>',
           '',
           'Codes expire after 10 minutes and work only once.',
-          'Open your desk and press <b>Send alerts to Telegram</b> for a fresh one.',
+          'Open your desk and press <b>Sign in with Telegram</b> for a fresh one.',
         ].join('\n'),
         action: 'rejected',
       };
     }
 
-    const rows = await watching(theses);
+    /*
+      SIGN-IN. This chat already belongs to an identity, and a different
+      browser just proved it controls the chat by relaying a code through it.
+      That browser becomes the existing identity instead of stealing the
+      chat: alerts keep going where they went, and the new browser collects
+      the grant on its next poll.
+    */
+    if (existing && isOwnerId(existing.sessionId) && existing.sessionId !== claimed.sessionId) {
+      await bindings.grantSignIn(claimed.sessionId, existing.sessionId);
+      return {
+        reply: [
+          '<b>Signed in.</b>',
+          '',
+          'Your other browser now shows your theses. Alerts keep coming here, as before.',
+        ].join('\n'),
+        action: 'signedin',
+      };
+    }
+
+    // A chat moving from a pre-identity browser keeps following the examples
+    // it was already getting. A brand new chat hears only about its own.
+    const bound: Binding = {
+      ...newBinding(claimed.sessionId, chat.id, chatName(chat)),
+      followsExamples: existing ? (existing.followsExamples ?? !isOwnerId(existing.sessionId)) : false,
+      ...(existing ? { notified: existing.notified } : {}),
+    };
+    await bindings.put(bound);
+
+    const rows = await watching(theses, bound);
     return {
       reply: [
         '<b>Connected.</b>',
@@ -176,13 +210,13 @@ export async function handleCommand(
         reply: [
           '<b>Not connected.</b>',
           '',
-          'Open your desk and press <b>Send alerts to Telegram</b> for a code.',
+          'Open your desk and press <b>Sign in with Telegram</b> for a code.',
         ].join('\n'),
         action: 'status',
       };
     }
 
-    const all = await watching(theses);
+    const all = await watching(theses, existing);
     const lastChecked = all
       .map((s) => s.lastCheckedAt)
       .filter((v): v is string => Boolean(v))

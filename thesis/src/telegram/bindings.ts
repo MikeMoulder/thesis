@@ -57,6 +57,12 @@ export interface Binding {
   lastNotifiedAt?: string;
   /** How many alerts this chat has been sent. Shown by /status. */
   notified: number;
+  /**
+   * Whether this chat also hears about the public example theses. Absent on
+   * bindings made before identities existed, which keep getting them: that is
+   * the chat that was receiving them. New bindings hear only about their own.
+   */
+  followsExamples?: boolean;
 }
 
 export interface PendingCode {
@@ -72,6 +78,16 @@ export interface BindingStore {
   /** Spend a code and bind the chat. Null if the code is unknown or expired. */
   redeem(code: string, chatId: number, chatName: string): Promise<Binding | null>;
   bySession(sessionId: string): Promise<Binding | null>;
+  /** Consume a code and say whose it was, without binding anything. */
+  claim(code: string): Promise<{ sessionId: string } | null>;
+  /**
+   * Record that the browser holding `session` proved it controls a Telegram
+   * chat already tied to `owner`, so it should become `owner`. Short-lived:
+   * the browser collects it on its next poll.
+   */
+  grantSignIn(session: string, owner: string): Promise<void>;
+  /** Collect and clear a sign-in grant. */
+  takeSignIn(session: string): Promise<string | null>;
   byChat(chatId: number): Promise<Binding | null>;
   /** Everyone who should be told. The recheck reads this. */
   list(): Promise<Binding[]>;
@@ -83,6 +99,7 @@ const BIND_KEY = (chatId: number): string => `tg:v1:bind:${chatId}`;
 const SESSION_KEY = (sessionId: string): string => `tg:v1:session:${sessionId}`;
 const CODE_KEY = (code: string): string => `tg:v1:code:${code}`;
 const INDEX_KEY = 'tg:v1:index';
+const SIGNIN_KEY = (sessionId: string): string => `tg:v1:signin:${sessionId}`;
 
 /**
  * Bindings are keyed by chat id and the session is a secondary lookup, which
@@ -185,6 +202,24 @@ class RedisBindingStore implements BindingStore {
     return this.byChat(Number(chatId));
   }
 
+  async claim(code: string): Promise<{ sessionId: string } | null> {
+    const key = CODE_KEY(code);
+    const pending = parse<{ sessionId: string }>(await command<string | null>(this.config, ['GET', key]));
+    if (!pending) return null;
+    await command(this.config, ['DEL', key]);
+    return { sessionId: pending.sessionId };
+  }
+
+  async grantSignIn(session: string, owner: string): Promise<void> {
+    await command(this.config, ['SET', SIGNIN_KEY(session), owner, 'EX', CODE_TTL_SEC]);
+  }
+
+  async takeSignIn(session: string): Promise<string | null> {
+    const owner = await command<string | null>(this.config, ['GET', SIGNIN_KEY(session)]);
+    if (owner) await command(this.config, ['DEL', SIGNIN_KEY(session)]);
+    return owner;
+  }
+
   async byChat(chatId: number): Promise<Binding | null> {
     return parse<Binding>(await command<string | null>(this.config, ['GET', BIND_KEY(chatId)]));
   }
@@ -260,6 +295,25 @@ class MemoryBindingStore implements BindingStore {
   async bySession(sessionId: string): Promise<Binding | null> {
     const chatId = this.sessions.get(sessionId);
     return chatId === undefined ? null : (this.bindings.get(chatId) ?? null);
+  }
+
+  private readonly signIns = new Map<string, { owner: string; expiresAtMs: number }>();
+
+  async claim(code: string): Promise<{ sessionId: string } | null> {
+    const pending = this.codes.get(code);
+    if (!pending) return null;
+    this.codes.delete(code);
+    return pending.expiresAtMs <= this.now() ? null : { sessionId: pending.sessionId };
+  }
+
+  async grantSignIn(session: string, owner: string): Promise<void> {
+    this.signIns.set(session, { owner, expiresAtMs: this.now() + CODE_TTL_SEC * 1000 });
+  }
+
+  async takeSignIn(session: string): Promise<string | null> {
+    const grant = this.signIns.get(session);
+    this.signIns.delete(session);
+    return grant && grant.expiresAtMs > this.now() ? grant.owner : null;
   }
 
   async byChat(chatId: number): Promise<Binding | null> {
