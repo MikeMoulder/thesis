@@ -196,14 +196,14 @@ This is where THESIS stops being a report.
 
 The person saves the thesis. From that moment, **every fifteen minutes, forever**, those five tripwires are read again from live filings and live prices. No AI is involved, which is exactly why it can run that often.
 
-On the two theses that have been live longest, the record is:
+On the two theses that have been live longest, the record as of 7 Oct 2026 is:
 
 ```text
-TSLA   150 checks   22 Jun 2026 to 17 Sep 2026   0 missed in the last 24h
-NVDA   155 checks   22 Jun 2026 to 17 Sep 2026   0 missed in the last 24h
+TSLA   500 checks   15 Jun 2026 to 7 Oct 2026   0 missed in the last 24h
+NVDA   500 checks   15 Jun 2026 to 7 Oct 2026   0 missed in the last 24h
 ```
 
-Sixty of each are reconstructed from history, and every reconstructed row says so on the row itself, because **a warning you were never actually given is not a warning.**
+76 of each are reconstructed from history, and every reconstructed row says so on the row itself, because **a warning you were never actually given is not a warning.**
 
 ---
 
@@ -236,11 +236,11 @@ The sentence they wrote, the number, the line it crossed, and the filing behind 
 
 After enough checks, THESIS reads its own log and reports on itself. On the live TSLA thesis:
 
-> **The first warning came 14 days before anything broke.**
+> **The first warning came 21 days before anything broke.**
 >
-> "90-day realised volatility will not push above 50%" weakened on 23 Jun 2026 and broke on 7 Jul 2026.
+> "90-day realised volatility will not push above 50%" weakened on 16 Jun 2026 and broke on 7 Jul 2026.
 
-Fourteen days is a measurement, not a promise. And where nothing has broken, it refuses to celebrate:
+Twenty-one days is a measurement from labelled, reconstructed history, not a promise. And where nothing has broken, it refuses to celebrate:
 
 > "Nothing has broken yet. That is not the same as nothing being at risk, and it says nothing at all about the parts no tripwire covers."
 
@@ -279,7 +279,7 @@ Open http://localhost:3100 and type a thesis.
 To check the parts that do not need any keys:
 
 ```bash
-npm test                          704 tests, no network, no keys needed
+npm test                          794 tests, no network, no keys needed
 npm run health                    are Bitget, Yahoo and SEC reachable
 npm run qwen:check -- 3 --compare prove the sponsor model answers
 npm run cron:check                is the 15 minute loop actually running

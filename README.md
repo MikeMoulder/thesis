@@ -76,15 +76,15 @@ And the sixth, the one that matters most:
 
 ### The line we are proudest of
 
-That thesis has been checked **150 times** between 22 Jun 2026 and 17 Sep 2026. Ninety of those checks were observed live. Sixty were reconstructed from history, and every single reconstructed row is labelled as reconstructed, because a warning you were never actually given is not a warning.
+That thesis carries **500 checks** from 15 Jun 2026 to today. 424 were observed live by the fifteen-minute loop. 76 were reconstructed, one a day, from what was publicly knowable on each date, and every reconstructed row is labelled as reconstructed, because a warning you were never actually given is not a warning.
 
 Out of that log, the product prints one sentence about itself:
 
-> **The first warning came 14 days before anything broke.**
+> **The first warning came 21 days before anything broke.**
 >
-> "90-day realised volatility will not push above 50%" weakened on 23 Jun 2026 and broke on 7 Jul 2026.
+> "90-day realised volatility will not push above 50%" weakened on 16 Jun 2026 and broke on 7 Jul 2026.
 
-Fourteen days. Not a backtest, not a promise, a measurement taken from its own record. And on the NVDA thesis next to it, where nothing has broken, it refuses to take a victory lap: *"Nothing has broken yet. That is not the same as nothing being at risk, and it says nothing at all about the parts no tripwire covers."*
+Twenty-one days. Not a promise: a measurement taken from its own log, with the reconstructed rows it came from labelled on the page. And on the NVDA thesis next to it, where nothing has broken, it refuses to take a victory lap: *"Nothing has broken yet. That is not the same as nothing being at risk, and it says nothing at all about the parts no tripwire covers."*
 
 **A product that only prints its wins is a brochure. This one prints the misses too, which is the only reason to believe the wins.**
 
@@ -235,7 +235,7 @@ BTC/USDT     rsi 50.3, neutral, 506ms
 
 ## The part that runs while you sleep
 
-Everything above is worth nothing if a tripwire crosses at three in the morning and the news sits on a web page until somebody opens a laptop. **Fourteen days of notice is not notice if nobody received it.**
+Everything above is worth nothing if a tripwire crosses at three in the morning and the news sits on a web page until somebody opens a laptop. **Three weeks of notice is not notice if nobody received it.**
 
 So the last piece of THESIS is a Telegram bot, and it is the piece that turns a research tool into something that watches your back.
 
@@ -384,7 +384,7 @@ Every box above is a real folder in this repository.
 
 **Knowing a number and knowing when you could have known it.** To ask "how often has this thesis been in trouble before", you have to value the company as it stood on a past date. The trap is brutal and the result looks completely convincing when you fall in: pair today's share count with a price from three years ago and you invent a company valuation that never existed. Every input we use is selected by **the date it became publicly knowable**, and we skip any day that does not have four filed quarters behind it. Invisible work, and the entire reason those historical numbers can be trusted.
 
-**Telling the difference between a warning and a reconstruction.** Sixty of those 150 checks were rebuilt from history. They are what THESIS *would have* told you. Every one is labelled that way, on every row, not once in a footnote. Taking credit for a warning you never sent is the easiest and most tempting lie in this entire product category.
+**Telling the difference between a warning and a reconstruction.** 76 of those 500 checks were rebuilt from history. They are what THESIS *would have* told you. Every one is labelled that way, on every row, not once in a footnote. Taking credit for a warning you never sent is the easiest and most tempting lie in this entire product category.
 
 **A price with nobody behind it.** Half the tokenized stocks we sampled have a confident price and an empty order book. THESIS reads the real depth and sizes positions against it, so "you can get out" is something it checks rather than something it assumes.
 
@@ -405,7 +405,7 @@ decompose      43 passed, 0 failed     taking a thesis apart
 breakers       24 passed, 0 failed     writing the tripwires
 actions        18 passed, 0 failed     what to do next
 scenario       18 passed, 0 failed     what-if mode
-thesis        132 passed, 0 failed     records, health, the check log
+thesis        137 passed, 0 failed     records, health, the check log
 backfill       34 passed, 0 failed     reconstructing history safely
 brief          27 passed, 0 failed     the closing summary
 valuation      33 passed, 0 failed     knowable-date discipline
@@ -419,8 +419,11 @@ telegram       74 passed, 0 failed     alerts, binding, webhook security
 derive         66 passed, 0 failed     turning a thesis into a signal
 ticket         43 passed, 0 failed     the order handoff and the unit trap
 session        30 passed, 0 failed     market hours, both sides of DST
+beliefs        24 passed, 0 failed     verdict-first list, unit formats
+overlap        23 passed, 0 failed     shared and opposed beliefs across theses
+identity       38 passed, 0 failed     private theses, Telegram sign-in
 -----------------------------------------------------------------------
-TOTAL         704 passed, 0 failed
+TOTAL         794 passed, 0 failed
 
 $ npm run typecheck
 tsc --noEmit                            clean
@@ -476,7 +479,9 @@ Taking a thesis apart. The Qwen second opinion. Writing and reading tripwires. L
 One of five bitget-signal Skills answers. We use that one and probe all five live. The other four are unreachable from Bitget's host and we report that rather than hide it.
 
 **Reconstructed, and always labelled:**
-Sixty of the 150 checks on each live thesis were rebuilt from historical data, so they show what THESIS would have told you. Never presented as warnings you received.
+76 of the 500 checks on each live thesis were rebuilt from historical data, so they show what THESIS would have told you. Never presented as warnings you received.
+
+**What the log keeps:** 500 checks per thesis. When it is full, routine checks where nothing moved go first; the baseline, every reconstructed day and every change of state are always kept. Until 7 October it simply kept the newest 500, about five days, and the observed checks from 16 September to 2 October were lost that way. The reconstructed history was rebuilt; those observed checks cannot be.
 
 **Deliberately not built:**
 THESIS **cannot place a trade** and holds no exchange key. Bitget hands an agent account's credential to a program on your own machine, so a hosted website has no business touching it. Instead, THESIS produces an order correct to the exchange's own decimal places and hands it to you, for the agent where your account is already connected:
@@ -522,7 +527,7 @@ Bitget market data needs **no key at all**, because we only use public read-only
 Useful commands:
 
 ```bash
-npm test                          all 704 tests
+npm test                          all 794 tests
 npm run qwen:check -- 3 --compare prove the sponsor model answers
 npm run health                    check every data source
 npm run cron:check                confirm the 15 minute loop is running
