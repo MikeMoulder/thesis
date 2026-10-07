@@ -1,4 +1,4 @@
-import { CHECK_LOG_LIMIT, type ThesisRecord } from './types';
+import { CHECK_LOG_LIMIT, trimChecks, type ThesisRecord } from './types';
 
 /**
  * Where theses live between visits.
@@ -27,7 +27,7 @@ const INDEX_KEY = 'thesis:v1:index';
 /** Trim the log on write. See CHECK_LOG_LIMIT for why this is not optional. */
 function trim(thesis: ThesisRecord): ThesisRecord {
   if (thesis.checks.length <= CHECK_LOG_LIMIT) return thesis;
-  return { ...thesis, checks: thesis.checks.slice(-CHECK_LOG_LIMIT) };
+  return { ...thesis, checks: trimChecks(thesis.checks) };
 }
 
 // ---------------------------------------------------------------------------

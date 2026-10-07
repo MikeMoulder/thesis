@@ -608,15 +608,48 @@ check('newest first', listed[0]?.id === 'T2', listed[0]?.id);
     String(back?.checks.length),
   );
   check(
-    'it is the OLDEST checks that get dropped',
-    back?.checks[0]?.version === overflow,
+    'the baseline, the first check, always survives',
+    back?.checks[0]?.version === 0,
     String(back?.checks[0]?.version),
+  );
+  check(
+    'it is the OLDEST routine checks after it that get dropped',
+    back?.checks[1]?.version === overflow + 1,
+    String(back?.checks[1]?.version),
   );
   check(
     'and the most recent check survives',
     back?.checks.at(-1)?.version === CHECK_LOG_LIMIT + overflow - 1,
     String(back?.checks.at(-1)?.version),
   );
+}
+
+{
+  /*
+    The record outlives routine checks. A change at position 10 and a
+    reconstructed day at position 20 sit inside the oldest 50, which is
+    exactly where keep-the-newest-500 used to delete them.
+  */
+  const overflow = 50;
+  const withRecord = thesis({
+    id: 'T5',
+    checks: Array.from({ length: CHECK_LOG_LIMIT + overflow }, (_, i) => ({
+      ...checkOf([]),
+      version: i,
+      ...(i === 10 ? { changes: [{ assumptionId: 'A1' } as never] } : {}),
+      ...(i === 20 ? { source: 'backfill' as const } : {}),
+    })),
+  });
+  await store.put(withRecord);
+  const kept = (await store.get('T5'))?.checks ?? [];
+  check('a check that recorded a change is never trimmed', kept.some((c) => c.version === 10));
+  check('nor is a reconstructed check', kept.some((c) => c.version === 20));
+  check('and the log is still capped', kept.length === CHECK_LOG_LIMIT, String(kept.length));
+  check(
+    'routine checks make the room instead',
+    !kept.some((c) => c.version === 1) && kept.at(-1)?.version === CHECK_LOG_LIMIT + overflow - 1,
+  );
+  await store.remove('T5');
 }
 
 await store.remove('T1');

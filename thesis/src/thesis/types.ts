@@ -219,6 +219,40 @@ export interface ThesisRecord {
  */
 export const CHECK_LOG_LIMIT = 500;
 
+/**
+ * Bring a log down to the limit by dropping ROUTINE checks first.
+ *
+ * This used to keep the newest 500 and drop the rest. At four checks an hour
+ * that is five days, so every transition older than that went, along with
+ * the reconstructed history and the evidence behind "the first warning came
+ * 14 days before anything broke". By October the autopsy had no warning to
+ * report at all, while 492 of the 500 checks it kept said nothing had changed.
+ *
+ * Kept, always: the first check (the baseline), every reconstructed check
+ * (the history), and every check that recorded a change (the record). Dropped
+ * first, oldest first: live checks where nothing moved. The newest checks are
+ * the last routine ones to go, so the recent window the cron health and the
+ * recovery rule read from stays complete.
+ *
+ * Only if the record itself outgrows the limit are the oldest entries
+ * dropped regardless.
+ */
+export function trimChecks(checks: Check[], limit = CHECK_LOG_LIMIT): Check[] {
+  if (checks.length <= limit) return checks;
+
+  let excess = checks.length - limit;
+  const kept: Check[] = [];
+  checks.forEach((check, i) => {
+    const record = i === 0 || check.source !== 'live' || check.changes.length > 0;
+    if (!record && excess > 0) {
+      excess -= 1;
+      return;
+    }
+    kept.push(check);
+  });
+  return kept.length > limit ? kept.slice(-limit) : kept;
+}
+
 export function currentVersion(thesis: ThesisRecord): ThesisVersion {
   const version = thesis.versions[thesis.versions.length - 1];
   if (!version) throw new Error(`thesis ${thesis.id} has no versions`);
