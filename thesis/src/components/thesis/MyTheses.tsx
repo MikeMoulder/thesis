@@ -103,6 +103,37 @@ function ThesisCard({ summary, now }: { summary: ThesisSummary; now: number }) {
   );
 }
 
+function Group({
+  label,
+  note,
+  theses,
+  now,
+  className,
+}: {
+  label: string;
+  note?: string;
+  theses: ThesisSummary[];
+  now: number;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-baseline gap-x-3 border-b border-line-strong pb-3">
+        <span className="text-meta uppercase tracking-[0.14em] text-muted">{label}</span>
+        <span data-figure className="text-sm text-faint">
+          {theses.length}
+        </span>
+        {note ? <span className="text-sm text-faint">{note}</span> : null}
+      </div>
+      <div className="mt-1">
+        {theses.map((summary) => (
+          <ThesisCard key={summary.id} summary={summary} now={now} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MyTheses({
   theses,
   now,
@@ -122,25 +153,29 @@ export function MyTheses({
   // Worst first. A page that sorts by date buries the thing that needs
   // attention under whatever happened to be created most recently.
   const order = { broken: 0, weakening: 1, uncheckable: 2, healthy: 3 } as const;
-  const sorted = [...theses].sort((a, b) => {
-    const byHealth = order[a.health] - order[b.health];
-    return byHealth !== 0 ? byHealth : b.createdAt.localeCompare(a.createdAt);
-  });
+  const worstFirst = (list: ThesisSummary[]) =>
+    [...list].sort((a, b) => {
+      const byHealth = order[a.health] - order[b.health];
+      return byHealth !== 0 ? byHealth : b.createdAt.localeCompare(a.createdAt);
+    });
+  const mine = worstFirst(theses.filter((t) => !t.example));
+  const examples = worstFirst(theses.filter((t) => t.example));
 
   return (
     <section className={cn('w-full', className)}>
-      <div className="flex flex-wrap items-baseline gap-x-3 border-b border-line-strong pb-3">
-        <span className="text-meta uppercase tracking-[0.14em] text-muted">Under observation</span>
-        <span data-figure className="text-sm text-faint">
-          {theses.length}
-        </span>
-      </div>
+      {mine.length > 0 ? <Group label="Your theses" theses={mine} now={now} /> : null}
 
-      <div className="mt-1">
-        {sorted.map((summary) => (
-          <ThesisCard key={summary.id} summary={summary} now={now} />
-        ))}
-      </div>
+      {/* The examples are everyone's: they show what a thesis looks like after
+          weeks of watching, before a visitor has one of their own. */}
+      {examples.length > 0 ? (
+        <Group
+          label="Examples"
+          note="Live theses anyone can open. Yours are private to you."
+          theses={examples}
+          now={now}
+          className={mine.length > 0 ? 'mt-10' : undefined}
+        />
+      ) : null}
 
       <p className="mt-5 max-w-prose text-base text-muted">
         Each of these is re-checked against live filings and prices every fifteen minutes, whether

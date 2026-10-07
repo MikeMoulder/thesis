@@ -39,7 +39,9 @@ const RELATION: Record<
   },
 };
 
-type State = { phase: 'loading' } | { phase: 'done'; result: OverlapResult } | { phase: 'failed' };
+type Scoped = OverlapResult & { scope?: 'yours' | 'examples' };
+
+type State = { phase: 'loading' } | { phase: 'done'; result: Scoped } | { phase: 'failed' };
 
 function Group({ group }: { group: OverlapGroup }) {
   const relation = RELATION[group.relation];
@@ -92,7 +94,7 @@ export function SharedBeliefs({ className }: { className?: string }) {
   useEffect(() => {
     let live = true;
     fetch('/api/overlap')
-      .then((r) => (r.ok ? (r.json() as Promise<OverlapResult>) : Promise.reject(r.status)))
+      .then((r) => (r.ok ? (r.json() as Promise<Scoped>) : Promise.reject(r.status)))
       .then((result) => live && setState({ phase: 'done', result }))
       .catch(() => live && setState({ phase: 'failed' }));
     return () => {
@@ -109,7 +111,9 @@ export function SharedBeliefs({ className }: { className?: string }) {
     <section className={className} aria-label="What your theses have in common">
       <div className="flex flex-wrap items-baseline gap-x-3 border-b border-line-strong pb-3">
         <span className="text-meta uppercase tracking-[0.14em] text-muted">
-          What your theses have in common
+          {state.phase === 'done' && state.result.scope === 'examples'
+            ? 'What the example theses have in common'
+            : 'What your theses have in common'}
         </span>
         {state.phase === 'done' ? (
           <span data-figure className="text-sm text-faint">

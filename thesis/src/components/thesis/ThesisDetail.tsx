@@ -293,6 +293,12 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
           <span className="text-meta uppercase tracking-[0.12em] text-faint">
             {DIRECTION_WORD[thesis.direction]}
           </span>
+          {/* Said up front, so nobody reads a public example as their own. */}
+          {thesis.ownerId ? null : (
+            <span className="rounded-full border border-line px-2 py-px text-meta uppercase tracking-[0.12em] text-faint">
+              Example
+            </span>
+          )}
           <span
             className={cn(
               'ml-auto flex items-baseline gap-2 text-meta uppercase tracking-[0.14em]',

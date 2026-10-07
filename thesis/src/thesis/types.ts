@@ -204,6 +204,11 @@ export interface ThesisRecord {
   versions: ThesisVersion[];
   /** Oldest first. Capped — see CHECK_LOG_LIMIT. */
   checks: Check[];
+  /**
+   * Who wrote it. Absent on the theses that predate identities, which are
+   * the public examples every visitor sees. See thesis/ownership.ts.
+   */
+  ownerId?: string;
 }
 
 /**
@@ -253,6 +258,8 @@ export interface ThesisSummary {
   lastCheckedAt: string | null;
   checkCount: number;
   createdAt: string;
+  /** A public example rather than the viewer's own thesis. */
+  example: boolean;
 }
 
 export function summariseThesis(thesis: ThesisRecord): ThesisSummary {
@@ -276,5 +283,6 @@ export function summariseThesis(thesis: ThesisRecord): ThesisSummary {
     lastCheckedAt: check?.at ?? null,
     checkCount: thesis.checks.length,
     createdAt: thesis.createdAt,
+    example: !thesis.ownerId,
   };
 }

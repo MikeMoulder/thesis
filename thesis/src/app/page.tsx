@@ -1,4 +1,6 @@
 import { Desk } from '@/components/shell/Desk';
+import { currentOwner } from '@/lib/identity-server';
+import { visibleTo } from '@/thesis/ownership';
 import { getStore } from '@/thesis/store';
 import { summariseThesis, type ThesisSummary } from '@/thesis/types';
 
@@ -22,8 +24,9 @@ export const dynamic = 'force-dynamic';
 
 async function loadTheses(): Promise<ThesisSummary[]> {
   try {
-    const theses = await getStore().list();
-    return theses.map(summariseThesis);
+    // The visitor's own theses first, then the public examples.
+    const { mine, examples } = visibleTo(await getStore().list(), await currentOwner());
+    return [...mine, ...examples].map(summariseThesis);
   } catch {
     // A store outage must not take down the front door. The composer still
     // works, so a user can still start a thesis; they simply cannot see the

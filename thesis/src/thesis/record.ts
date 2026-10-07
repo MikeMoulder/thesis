@@ -111,6 +111,8 @@ export interface CreateThesisInput {
   id?: string;
   at?: string;
   scales?: MetricScales;
+  /** The visitor who wrote it. Omitted only for seeded examples. */
+  ownerId?: string;
 }
 
 /** A brand-new thesis: version 1, plus the check that established its baseline. */
@@ -133,6 +135,7 @@ export function createThesis(input: CreateThesisInput): ThesisRecord {
     status: 'live',
     versions: [version],
     checks: [],
+    ...(input.ownerId ? { ownerId: input.ownerId } : {}),
   };
 
   return appendCheck(base, {

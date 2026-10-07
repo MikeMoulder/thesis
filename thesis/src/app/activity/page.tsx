@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { Activity } from '@/components/activity/Activity';
 import { AppShell } from '@/components/shell/AppShell';
 import { buildActivityFeed, summariseActivity } from '@/thesis/activity';
+import { currentOwner } from '@/lib/identity-server';
+import { visibleTo } from '@/thesis/ownership';
 import { getStore } from '@/thesis/store';
 
 /**
@@ -32,9 +34,12 @@ export default async function Page() {
   // A store outage must not take the page down. An empty feed with the standing
   // explanation is a worse answer than the truth but a better one than a stack
   // trace, and the header still says what this screen is for.
-  const theses = await getStore()
+  const all = await getStore()
     .list()
     .catch(() => []);
+  // Only the visitor's own theses and the public examples.
+  const { mine, examples } = visibleTo(all, await currentOwner());
+  const theses = [...mine, ...examples];
 
   const entries = buildActivityFeed(theses, FEED_LIMIT);
   return (

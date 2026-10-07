@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 
 import { AppShell } from '@/components/shell/AppShell';
 import { ThesisDetail } from '@/components/thesis/ThesisDetail';
+import { currentOwner } from '@/lib/identity-server';
+import { canView } from '@/thesis/ownership';
 import { getStore } from '@/thesis/store';
 import { currentVersion, latestCheck, type ThesisRecord } from '@/thesis/types';
 
@@ -24,14 +26,17 @@ export const runtime = 'nodejs'; // the Redis adapter and the fs-backed counter 
 export const dynamic = 'force-dynamic';
 
 async function load(id: string): Promise<ThesisRecord | null> {
+  let thesis: ThesisRecord | null;
   try {
-    return await getStore().get(id);
+    thesis = await getStore().get(id);
   } catch {
     // A store outage is not a missing thesis. Returning null would render a
     // 404 saying this belief does not exist, when in fact we simply could not
     // reach it — so let it throw to the error boundary instead.
     throw new Error('The thesis store could not be reached.');
   }
+  // Somebody else's thesis is indistinguishable from no thesis.
+  return thesis && canView(thesis, await currentOwner()) ? thesis : null;
 }
 
 export async function generateMetadata({

@@ -1,3 +1,5 @@
+import { ownerFromRequest } from '@/lib/identity';
+import { canEdit, canView } from '@/thesis/ownership';
 import { getStore } from '@/thesis/store';
 import type { ThesisStatus } from '@/thesis/types';
 
@@ -19,11 +21,13 @@ function fail(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
 }
 
-export async function GET(_request: Request, { params }: Params): Promise<Response> {
+export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   try {
     const thesis = await getStore().get(id);
-    if (!thesis) return fail('No thesis with that id.', 404);
+    if (!thesis || !canView(thesis, await ownerFromRequest(request))) {
+      return fail('No thesis with that id.', 404);
+    }
     return Response.json({ thesis });
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error), 503);
@@ -50,7 +54,10 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   try {
     const store = getStore();
     const thesis = await store.get(id);
-    if (!thesis) return fail('No thesis with that id.', 404);
+    // Examples are nobody's to change, and other people's are not yours.
+    if (!thesis || !canEdit(thesis, await ownerFromRequest(request))) {
+      return fail('No thesis with that id.', 404);
+    }
 
     const updated = { ...thesis, status: status as ThesisStatus };
     await store.put(updated);
@@ -60,10 +67,16 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   }
 }
 
-export async function DELETE(_request: Request, { params }: Params): Promise<Response> {
+export async function DELETE(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   try {
-    await getStore().remove(id);
+    // This used to delete whatever id it was handed, for anyone.
+    const store = getStore();
+    const thesis = await store.get(id);
+    if (!thesis || !canEdit(thesis, await ownerFromRequest(request))) {
+      return fail('No thesis with that id.', 404);
+    }
+    await store.remove(id);
     return Response.json({ ok: true });
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error), 503);

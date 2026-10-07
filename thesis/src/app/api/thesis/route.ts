@@ -3,6 +3,8 @@ import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { BreakerSet } from '@/engine/breakers/types';
 import type { Decomposition } from '@/engine/decomposer/types';
 import { createThesis, thesisId } from '@/thesis/record';
+import { ownerFromRequest } from '@/lib/identity';
+import { visibleTo } from '@/thesis/ownership';
 import { getStore, storeStatus } from '@/thesis/store';
 import { summariseThesis, type ThesisRecord } from '@/thesis/types';
 
@@ -41,11 +43,11 @@ function bad(message: string): Response {
 
 // ---------------------------------------------------------------------------
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
-    const theses = await getStore().list();
+    const { mine, examples } = visibleTo(await getStore().list(), await ownerFromRequest(request));
     return Response.json({
-      theses: theses.map(summariseThesis),
+      theses: [...mine, ...examples].map(summariseThesis),
       store: storeStatus(),
     });
   } catch (error) {
@@ -59,6 +61,16 @@ export async function GET(): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request): Promise<Response> {
+  /*
+    A thesis saved without an owner would become a public example that every
+    visitor sees and nobody can delete. The proxy gives every browser an id,
+    so this only happens to a client that bypassed it.
+  */
+  const ownerId = await ownerFromRequest(request);
+  if (!ownerId) {
+    return Response.json({ error: 'No identity on this request. Reload the page and try again.' }, { status: 401 });
+  }
+
   let body: CreateBody;
   try {
     body = (await request.json()) as CreateBody;
@@ -121,6 +133,7 @@ export async function POST(request: Request): Promise<Response> {
           breakerSet,
           evaluations,
           modelCalls,
+          ownerId,
         });
 
         try {

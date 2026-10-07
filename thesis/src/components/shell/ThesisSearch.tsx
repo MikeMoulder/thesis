@@ -88,7 +88,7 @@ export function ThesisSearch({
 
       {watchedHits.length > 0 ? (
         <>
-          <Label>Under observation</Label>
+          <Label>Watched</Label>
           {watchedHits.map((t) => (
             <button
               key={t.id}
@@ -110,6 +110,7 @@ export function ThesisSearch({
                   >
                     {HEALTH_WORD[t.health]}
                   </span>
+                  {t.example ? <span className="text-meta text-faint">example</span> : null}
                 </span>
                 <span className="mt-0.5 line-clamp-2 text-sm leading-snug text-muted">
                   {t.statement}
