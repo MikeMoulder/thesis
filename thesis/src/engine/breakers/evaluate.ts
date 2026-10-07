@@ -78,12 +78,60 @@ function headroomOf(value: number, operator: Operator, threshold: number): numbe
   return operator === '<' || operator === '<=' ? value - threshold : threshold - value;
 }
 
+/**
+ * Metrics measured in dollars. They read with a $ and a K, M or B, because
+ * "73327.71" is a number a reader has to count the digits of before it means
+ * anything, and "$73.3K" is not.
+ */
+const DOLLAR_METRICS: ReadonlySet<Metric> = new Set<Metric>([
+  'revenue',
+  'grossProfit',
+  'operatingIncome',
+  'netIncome',
+  'researchAndDevelopment',
+  'eps',
+  'price',
+  'marketCap',
+  'exitDepthUsd',
+]);
+
+/** Valuation multiples: "25.4×" says "times sales" where a bare 25.40 says nothing. */
+const MULTIPLE_METRICS: ReadonlySet<Metric> = new Set<Metric>(['trailingPE', 'priceToSales']);
+
+/** Quoted in basis points, and a reader needs to be told so. */
+const BPS_METRICS: ReadonlySet<Metric> = new Set<Metric>(['spreadBps', 'exitSlippageBps']);
+
 export function formatValue(metric: Metric, value: number): string {
-  const suffix = PERCENT_METRICS.has(metric) ? '%' : '';
+  if (PERCENT_METRICS.has(metric)) return `${value.toFixed(2)}%`;
+  if (MULTIPLE_METRICS.has(metric)) return `${value.toFixed(1)}×`;
+  if (BPS_METRICS.has(metric)) return `${Math.round(value).toLocaleString('en-US')} bps`;
+
   const abs = Math.abs(value);
-  if (!suffix && abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (!suffix && abs >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-  return `${value.toFixed(2)}${suffix}`;
+  const sign = value < 0 ? '-' : '';
+  const scaled =
+    abs >= 1e9
+      ? `${(abs / 1e9).toFixed(2)}B`
+      : abs >= 1e6
+        ? `${(abs / 1e6).toFixed(1)}M`
+        : abs >= 1e4
+          ? `${(abs / 1e3).toFixed(1)}K`
+          : abs.toFixed(2);
+  return DOLLAR_METRICS.has(metric) ? `${sign}$${scaled}` : `${sign}${scaled}`;
+}
+
+/**
+ * How far a reading is from its line, as a reader would say it.
+ *
+ * Not formatValue. A gap between two percentages is in points, not percent:
+ * margin going from 53.77% to 55% is 1.23 points, never "1.23%". And a gap
+ * between two multiples printed as "10.4×" reads as "ten times", which is a
+ * different and alarming claim.
+ */
+export function formatGap(metric: Metric, magnitude: number): string {
+  const abs = Math.abs(magnitude);
+  if (PERCENT_METRICS.has(metric)) return `${abs.toFixed(2)} points`;
+  if (MULTIPLE_METRICS.has(metric)) return `${abs.toFixed(1)} points`;
+  return formatValue(metric, abs);
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +150,7 @@ export async function evaluateLive(
       breakerId: breaker.id,
       mode: 'live',
       status: 'undeterminable',
-      reason: `event breakers need a news feed; none is wired. Watch manually for: ${breaker.watchFor}`,
+      reason: `No news feed is connected, so nothing here can see this happen. Watch for it yourself: ${breaker.watchFor}`,
     };
   }
 

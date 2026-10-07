@@ -1,7 +1,8 @@
 'use client';
 
 import { Define } from '@/components/prose/Define';
-import { PERCENT_METRICS, type Operator, type ThesisBreaker } from '@/engine/breakers/types';
+import { formatValue } from '@/engine/breakers/evaluate';
+import { PERCENT_METRICS, type Metric, type Operator, type ThesisBreaker } from '@/engine/breakers/types';
 import { defineMetric } from '@/lib/glossary';
 import { cn } from '@/lib/utils';
 
@@ -21,15 +22,16 @@ import { cn } from '@/lib/utils';
  * "drawdown <= -30" reads naturally as "falls MORE than 30% below its high",
  * where a literal "is less than -30%" would send most readers the wrong way.
  */
-function phrase(metric: string, operator: Operator, threshold: number): string {
+function phrase(metric: Metric, operator: Operator, threshold: number): string {
   if (metric === 'drawdownFromHigh') {
     return operator === '<' || operator === '<='
       ? `falls more than ${Math.abs(threshold)}% below its high`
       : `recovers to within ${Math.abs(threshold)}% of its high`;
   }
 
-  const unit = PERCENT_METRICS.has(metric as never) ? '%' : '';
-  const level = `${threshold}${unit}`;
+  // Percentages as written ("55%", not "55.00%"). Everything else through
+  // the shared formatter, so a depth line reads "$25.0K" and not "25000".
+  const level = PERCENT_METRICS.has(metric) ? `${threshold}%` : formatValue(metric, threshold);
 
   switch (operator) {
     case '<':
@@ -41,6 +43,12 @@ function phrase(metric: string, operator: Operator, threshold: number): string {
     case '>=':
       return `reaches ${level} or higher`;
   }
+}
+
+/** The same condition as plain text, for places that cannot hold a definition. */
+export function plainConditionText(breaker: ThesisBreaker): string {
+  if (breaker.kind === 'event') return breaker.watchFor;
+  return `${defineMetric(breaker.metric).label} ${phrase(breaker.metric, breaker.operator, breaker.threshold)}`;
 }
 
 export function PlainCondition({

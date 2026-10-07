@@ -1,4 +1,4 @@
-import type { Evaluation } from './breakers/evaluate';
+import { formatGap, type Evaluation } from './breakers/evaluate';
 import { PERCENT_METRICS, type BreakerSet, type ThesisBreaker } from './breakers/types';
 import type { Decomposition } from './decomposer/types';
 import { humaniseMetrics } from '../lib/glossary';
@@ -80,11 +80,8 @@ function sentence(text: string): string {
 }
 
 function formatPoints(evaluation: Evaluation, breaker: ThesisBreaker): string {
-  if (evaluation.headroom === undefined) return '';
-  const magnitude = Math.abs(evaluation.headroom).toFixed(2);
-  const unit =
-    breaker.kind === 'threshold' && PERCENT_METRICS.has(breaker.metric) ? ' points' : '';
-  return `${magnitude}${unit}`;
+  if (evaluation.headroom === undefined || breaker.kind !== 'threshold') return '';
+  return formatGap(breaker.metric, evaluation.headroom);
 }
 
 export function deriveActions(
@@ -159,7 +156,7 @@ export function deriveActions(
             ? 'Some tripwires could not be read. Treat them as unknown, not as fine.'
             : 'One tripwire could not be read. Treat it as unknown, not as fine.',
         detail:
-          `${humaniseMetrics(blind[0]?.reason ?? 'No data source is wired for this one.')} ` +
+          `${sentence(humaniseMetrics(blind[0]?.reason ?? 'No data source is wired for this one.'))} ` +
           'An unread tripwire is not a quiet one. You simply do not know either way, ' +
           'and you would have to check this by hand.',
         refs: blind.map((b) => b.breakerId),

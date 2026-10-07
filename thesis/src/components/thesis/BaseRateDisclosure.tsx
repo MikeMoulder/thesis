@@ -6,7 +6,11 @@ import { BaseRateChart } from '@/components/thesis/BaseRateChart';
 import type { Evaluation, HistoricalEvidence } from '@/engine/breakers/evaluate';
 import type { ThesisBreaker } from '@/engine/breakers/types';
 
-import { breakerCondition } from './breaker-text';
+import { plainConditionText } from './PlainCondition';
+
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 /**
  * Base rates, fetched the first time someone opens them.
@@ -76,7 +80,9 @@ export function BaseRateDisclosure({ ticker, breaker }: { ticker: string; breake
         <span aria-hidden className="text-faint transition-transform group-open:rotate-90">
           ›
         </span>
-        When <span data-figure>{breakerCondition(breaker)}</span> happened before
+        {/* The section heading already says these are past occurrences, so
+            the row only has to name the condition, in words. */}
+        {capitalise(plainConditionText(breaker))}
       </summary>
 
       <div className="mt-3">

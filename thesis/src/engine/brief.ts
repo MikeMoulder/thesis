@@ -1,4 +1,4 @@
-import { formatValue, type Evaluation } from './breakers/evaluate';
+import { formatGap, formatValue, type Evaluation } from './breakers/evaluate';
 import { PERCENT_METRICS, type BreakerSet, type ThesisBreaker } from './breakers/types';
 import type { Decomposition } from './decomposer/types';
 import { metricPhrase } from '../lib/glossary';
@@ -57,10 +57,6 @@ export interface Brief {
   judgement: string[];
   /** Honest limits: covered by nothing, or unreadable today. */
   limits: string[];
-}
-
-function unit(breaker: ThesisBreaker): string {
-  return breaker.kind === 'threshold' && PERCENT_METRICS.has(breaker.metric) ? ' points' : '';
 }
 
 function movesWhen(breaker: ThesisBreaker): string {
@@ -175,7 +171,7 @@ export function deriveBrief(
         breaksAt: formatValue(breaker.metric, breaker.threshold),
         ...(evaluation.headroom !== undefined
           ? {
-              room: `${formatValue(breaker.metric, Math.abs(evaluation.headroom)).replace(/%$/, '')}${unit(breaker)}`,
+              room: formatGap(breaker.metric, evaluation.headroom),
             }
           : {}),
       };
@@ -204,11 +200,14 @@ export function deriveBrief(
       ? {
           line: sentence(closestBreaker.statement),
           detail:
-            `It is ${formatValue(
+            `It is ${formatGap(
               closest.evaluation.metric ?? 'price',
-              Math.abs(closest.evaluation.headroom ?? 0),
-            ).replace(/%$/, '')}${unit(closestBreaker)} from tripping, the nearest of the ` +
-            `${holding.length} that could be read, and it moves ${movesWhen(closestBreaker)}.`,
+              closest.evaluation.headroom ?? 0,
+            )} from tripping` +
+            // "the nearest of the 1 that could be read" was printed when only
+            // one could be, which is a superlative over a set of one.
+            `${holding.length > 1 ? `, the nearest of the ${holding.length} that could be read` : ''}` +
+            `, and it moves ${movesWhen(closestBreaker)}.`,
         }
       : null;
 
