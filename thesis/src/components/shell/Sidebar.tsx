@@ -7,6 +7,7 @@ import { PanelLeftClose, Plus, Search } from 'lucide-react';
 import type { WatchRow } from '@/app/api/watchlist/route';
 import { TelegramBind } from '@/components/shell/TelegramBind';
 import { TickerMark } from '@/components/thesis/TickerMark';
+import { readCollapsed, writeCollapsed } from '@/lib/panel';
 import { cn } from '@/lib/utils';
 
 /**
@@ -38,31 +39,6 @@ import { cn } from '@/lib/utils';
  *   health instead, which is the thing a user actually needs to trust.
  */
 
-/**
- * The collapse preference lives here, not in the Desk.
- *
- * It is a fact about the SIDEBAR, and keeping it in the one page that happened
- * to render a sidebar first is why the sidebar could not be used anywhere else.
- * Desk still passes its own value, so nothing about its behaviour changes.
- */
-const PANEL_KEY = 'thesis.panel.collapsed.v1';
-
-function loadCollapsed(): boolean {
-  try {
-    return localStorage.getItem(PANEL_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function saveCollapsed(value: boolean): void {
-  try {
-    localStorage.setItem(PANEL_KEY, value ? '1' : '0');
-  } catch {
-    // Blocked storage: the preference lasts for this session only.
-  }
-}
-
 export interface SessionSummary {
   id: string;
   ticker: string;
@@ -74,21 +50,37 @@ export interface SessionSummary {
 /** How many watchlist rows survive the collapse. Six fills the rail without scrolling it. */
 const RAIL_WATCH_LIMIT = 6;
 
+/**
+ * Anything that is not a mark: gone when collapsed.
+ *
+ * It fades out at once on the way in, and back a beat after the width starts
+ * opening on the way out, so text is never seen squeezed against the edge.
+ */
+const FADE =
+  'transition-opacity duration-150 delay-75 collapsed:opacity-0 collapsed:delay-0 collapsed:duration-100';
+
+/** A one-line label that rides along with its row instead of wrapping as the width moves. */
+const LABEL = cn(FADE, 'whitespace-nowrap');
+
+/**
+ * Every row is one pill in both states.
+ *
+ * Collapsed, it narrows to the 46px the rail leaves it, and its icon sits
+ * exactly in the middle: 12px of padding either side of a 22px mark. The
+ * labels after it are clipped rather than removed, so the row a reader
+ * clicks on is the same element whichever way the panel is set.
+ */
 function rowClass(active = false) {
   return cn(
-    'flex w-full items-center gap-3 rounded-full px-3 py-2 text-left text-base',
+    'flex w-full items-center gap-3 overflow-hidden rounded-full px-3 py-2 text-left text-base',
     'transition-colors duration-150',
     active ? 'bg-raised text-text' : 'text-muted hover:bg-raised hover:text-text',
   );
 }
 
-/** The rail's equivalent of a pill: a square hit area that rounds on hover. */
-function railClass(active = false) {
-  return cn(
-    'flex size-9 shrink-0 items-center justify-center rounded-full',
-    'transition-colors duration-150',
-    active ? 'bg-raised text-text' : 'text-muted hover:bg-raised hover:text-text',
-  );
+/** Lucide icons are 15px. A 22px box puts their centre where a ticker mark's is. */
+function RowIcon({ children }: { children: React.ReactNode }) {
+  return <span className="flex w-[22px] shrink-0 justify-center">{children}</span>;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -212,51 +204,52 @@ function useWatchlist(): WatchRow[] | null {
  * link.
  *
  * Given handlers it behaves exactly as it always did. Given none it falls back
- * to plain navigation, fetches its own source health, and remembers its own
- * collapsed state. A component that can only live inside one parent is not a
+ * to plain navigation and fetches its own source health. The collapsed state
+ * is always its own. A component that can only live inside one parent is not a
  * shell.
  */
 export function Sidebar({
   sessions = [],
   activeId = null,
   sourcesHealthy,
-  collapsed,
   onSelect,
   onNew,
   onPickTicker,
-  onToggle,
   className,
 }: {
   sessions?: SessionSummary[];
   activeId?: string | null;
   /** Omit to let the sidebar check the sources itself. */
   sourcesHealthy?: boolean | null | undefined;
-  /** Omit to let the sidebar own the preference. */
-  collapsed?: boolean | undefined;
   onSelect?: ((id: string) => void) | undefined;
   /** Omit to make "New thesis" navigate to the desk instead. */
   onNew?: (() => void) | undefined;
   /** Omit to make a watchlist row navigate to the desk instead. */
   onPickTicker?: ((ticker: string) => void) | undefined;
-  onToggle?: (() => void) | undefined;
   className?: string;
 } = {}) {
   const router = useRouter();
 
   /*
-    Own the state only when nobody else does. `undefined` means "not supplied",
-    which is different from `null` (checked, and the answer is unknown) and from
-    `false`. Collapsing those three would make an uncontrolled sidebar flicker
-    open on every render.
+    Own the health check only when nobody else does. `undefined` means "not
+    supplied", which is different from `null` (checked, and the answer is
+    unknown) and from `false`.
   */
   const [ownHealthy, setOwnHealthy] = useState<boolean | null>(null);
-  const [ownCollapsed, setOwnCollapsed] = useState(false);
   const uncontrolledHealth = sourcesHealthy === undefined;
-  const uncontrolledCollapse = collapsed === undefined;
 
-  useEffect(() => {
-    if (uncontrolledCollapse) setOwnCollapsed(loadCollapsed());
-  }, [uncontrolledCollapse]);
+  /*
+    What the panel LOOKS like is already settled by the time this runs: the
+    head script set data-panel before the first paint. This only catches React
+    up, so focus and the toggle's label match what is on screen.
+  */
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => setCollapsed(readCollapsed()), []);
+
+  const toggle = () => {
+    writeCollapsed(!collapsed);
+    setCollapsed(!collapsed);
+  };
 
   useEffect(() => {
     if (!uncontrolledHealth) return;
@@ -271,15 +264,6 @@ export function Sidebar({
   }, [uncontrolledHealth]);
 
   const health = uncontrolledHealth ? ownHealthy : sourcesHealthy;
-  const isCollapsed = uncontrolledCollapse ? ownCollapsed : collapsed;
-
-  const toggle =
-    onToggle ??
-    (() =>
-      setOwnCollapsed((current) => {
-        saveCollapsed(!current);
-        return !current;
-      }));
 
   /*
     Without handlers these become navigation. A watchlist row on the activity
@@ -292,135 +276,128 @@ export function Sidebar({
   const select = onSelect ?? ((id: string) => router.push(`/?session=${encodeURIComponent(id)}`));
   const watch = useWatchlist();
 
-  // Collapsed: only what survives without a label — the marks.
-  if (isCollapsed) {
-    return (
-      <nav
-        aria-label="Theses and watchlist"
-        className={cn('flex w-[68px] shrink-0 flex-col items-center gap-1 px-2 py-3', className)}
-      >
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label="Expand panel"
-          aria-expanded={false}
-          title="Expand panel"
-          className="mb-2 flex size-9 items-center justify-center rounded-full transition-opacity hover:opacity-75"
-        >
-          <BrandMark />
-        </button>
+  /*
+    ONE tree for both states, and only the width moves.
 
-        <button
-          type="button"
-          onClick={startNew}
-          title="New thesis"
-          aria-label="New thesis"
-          className={cn(railClass(), 'bg-raised text-text')}
-        >
-          <Plus size={16} strokeWidth={1.5} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={startNew}
-          title="Search theses"
-          aria-label="Search theses"
-          className={railClass()}
-        >
-          <Search size={16} strokeWidth={1.5} aria-hidden />
-        </button>
+    It used to be two separate trees swapped on a boolean, so collapsing was a
+    cut from 272px to 68px with nothing in between. Now every mark keeps its
+    place and the panel slides shut over the labels beside it. Collapsed is
+    70px, not 68: that is what puts a 22px mark exactly in the middle of a row.
 
-        <div className="mt-3 flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-          {(watch ?? []).slice(0, RAIL_WATCH_LIMIT).map((row) => (
-            <button
-              key={row.ticker}
-              type="button"
-              onClick={() => pickTicker(row.ticker)}
-              className={railClass()}
-              title={`${row.ticker}${row.last === undefined ? '' : ` · ${row.last.toFixed(2)}`}`}
-              aria-label={`Start a thesis on ${row.ticker}`}
-            >
-              <TickerMark ticker={row.ticker} size="rail" />
-            </button>
-          ))}
-        </div>
-
-        {/* The dot alone is 6px of near-black while it is still checking, which
-            leaves the bottom of the rail looking empty rather than quiet. A
-            faint ring gives the slot presence without adding a second signal. */}
-        <span
-          className="mt-1 flex size-7 items-center justify-center rounded-full border border-line"
-          title={healthLabel(health)}
-        >
-          <span aria-hidden className={healthDotClass(health)} />
-          <span className="sr-only">{healthLabel(health)}</span>
-        </span>
-      </nav>
-    );
-  }
-
+    Anything hidden by the collapse is also `inert`, so a keyboard cannot tab
+    into a label nobody can see.
+  */
   return (
     <nav
       aria-label="Theses and watchlist"
-      className={cn('flex w-[272px] shrink-0 flex-col gap-1 px-3 py-3', className)}
+      className={cn(
+        'flex w-[272px] shrink-0 flex-col gap-1 overflow-hidden px-3 py-3',
+        'transition-[width] duration-200 ease-[cubic-bezier(0.2,0,0,1)] collapsed:w-[70px]',
+        className,
+      )}
     >
-      {/* brand row */}
-      <div className="flex items-center justify-between px-1 pb-2">
-        <span className="flex items-center gap-2">
+      {/* Brand row. The mark sits over the column of row icons, so collapsing
+          leaves it exactly where it was, and in the rail it is the way back:
+          the one thing there that is not already a destination. */}
+      <div className="flex items-center gap-2 pb-2 pl-[10px]">
+        <button
+          type="button"
+          onClick={toggle}
+          inert={!collapsed}
+          aria-label="Expand panel"
+          aria-expanded={false}
+          title="Expand panel"
+          className="shrink-0 rounded-full transition-opacity hover:opacity-75"
+        >
           <BrandMark />
-          <span className="text-base font-medium tracking-[-0.01em] text-text">THESIS</span>
+        </button>
+        <span className={cn(LABEL, 'text-base font-medium tracking-[-0.01em] text-text')}>
+          THESIS
         </span>
-        {onToggle ? (
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label="Collapse panel"
-            aria-expanded
-            title="Collapse panel"
-            className="rounded-[7px] p-1 text-faint transition-colors hover:bg-raised hover:text-text"
-          >
-            <PanelLeftClose size={15} strokeWidth={1.5} />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={toggle}
+          inert={collapsed}
+          aria-label="Collapse panel"
+          aria-expanded
+          title="Collapse panel"
+          className={cn(
+            FADE,
+            'ml-auto shrink-0 rounded-[7px] p-1 text-faint hover:bg-raised hover:text-text',
+          )}
+        >
+          <PanelLeftClose size={15} strokeWidth={1.5} />
+        </button>
       </div>
 
-      <button type="button" onClick={startNew} className={cn(rowClass(), 'bg-raised text-text')}>
-        <Plus size={15} strokeWidth={1.5} aria-hidden />
-        New thesis
+      <button
+        type="button"
+        onClick={startNew}
+        title={collapsed ? 'New thesis' : undefined}
+        className={cn(rowClass(), 'bg-raised text-text')}
+      >
+        <RowIcon>
+          <Plus size={15} strokeWidth={1.5} aria-hidden />
+        </RowIcon>
+        <span className={LABEL}>New thesis</span>
       </button>
-      <button type="button" className={rowClass()} onClick={startNew}>
-        <Search size={15} strokeWidth={1.5} aria-hidden />
-        Search theses
+      <button
+        type="button"
+        onClick={startNew}
+        title={collapsed ? 'Search theses' : undefined}
+        className={rowClass()}
+      >
+        <RowIcon>
+          <Search size={15} strokeWidth={1.5} aria-hidden />
+        </RowIcon>
+        <span className={LABEL}>Search theses</span>
       </button>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <WatchHeader />
+      {/* overflow-x stays hidden in both states. Mid-animation the content is
+          wider than the column, and a scrollbar would flash across the rail. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto collapsed:overflow-y-hidden">
+        <div className={cn(FADE, 'w-[248px] shrink-0')} aria-hidden={collapsed}>
+          <WatchHeader />
+        </div>
         {watch === null ? (
-          <p className="px-3 py-1 text-sm text-faint">Loading prices…</p>
+          <p className={cn(LABEL, 'px-3 py-1 text-sm text-faint')}>Loading prices…</p>
         ) : (
-          watch.map((row) => (
-            <button
-              key={row.ticker}
-              type="button"
-              onClick={() => pickTicker(row.ticker)}
-              className={rowClass()}
-              title={row.name ?? row.ticker}
-            >
-              <TickerMark ticker={row.ticker} />
-              <span data-figure className="w-12 shrink-0 text-sm text-text">
-                {row.ticker}
-              </span>
-              <span data-num className="flex-1 text-right text-sm tabular-nums text-muted">
-                {row.last === undefined ? '—' : row.last.toFixed(2)}
-              </span>
-              <span className="w-14 shrink-0 text-right">
-                <Change pct={row.changePct24h} />
-              </span>
-            </button>
-          ))
+          watch.map((row, i) => {
+            const offRail = i >= RAIL_WATCH_LIMIT;
+            return (
+              <button
+                key={row.ticker}
+                type="button"
+                onClick={() => pickTicker(row.ticker)}
+                inert={collapsed && offRail}
+                className={cn(rowClass(), 'shrink-0', offRail && FADE)}
+                title={
+                  collapsed
+                    ? `${row.ticker}${row.last === undefined ? '' : ` · ${row.last.toFixed(2)}`}`
+                    : (row.name ?? row.ticker)
+                }
+              >
+                <TickerMark ticker={row.ticker} />
+                {/* Fixed at the expanded width so the columns never reflow
+                    while the panel moves. 190 = 248 - 24 padding - 22 mark - 12 gap. */}
+                <span className={cn(FADE, 'flex w-[190px] shrink-0 items-center gap-3')}>
+                  <span data-figure className="w-12 shrink-0 text-sm text-text">
+                    {row.ticker}
+                  </span>
+                  <span data-num className="flex-1 text-right text-sm tabular-nums text-muted">
+                    {row.last === undefined ? '—' : row.last.toFixed(2)}
+                  </span>
+                  <span className="w-14 shrink-0 text-right">
+                    <Change pct={row.changePct24h} />
+                  </span>
+                </span>
+              </button>
+            );
+          })
         )}
 
         {sessions.length > 0 ? (
-          <>
+          <div className={cn(FADE, 'w-[248px] shrink-0')} inert={collapsed}>
             <SectionLabel>Your theses</SectionLabel>
             {sessions.map((session) => (
               <button
@@ -447,7 +424,7 @@ export function Sidebar({
                 ) : null}
               </button>
             ))}
-          </>
+          </div>
         ) : null}
       </div>
 
@@ -455,10 +432,28 @@ export function Sidebar({
           holds the two things a user does need to trust: that the sources are
           up, and that the answer can actually reach them. They are the same
           question asked from opposite ends, which is why they sit together. */}
-      <TelegramBind />
-      <div className="flex items-center gap-2.5 px-3 pt-2">
-        <span aria-hidden className={healthDotClass(health)} />
-        <span className="text-meta leading-tight text-faint">{healthLabel(health)}</span>
+      <div className={cn(FADE, 'w-[248px] shrink-0')} inert={collapsed}>
+        <TelegramBind />
+      </div>
+      <div
+        className="flex items-center gap-2.5 px-3 pt-2"
+        title={collapsed ? healthLabel(health) : undefined}
+      >
+        {/* Slides 8px right as the panel closes, onto the rail's centre line.
+            The ring only shows in the rail: alone there, a 6px dot that is
+            still checking reads as an empty slot rather than a quiet one. */}
+        <span
+          className={cn(
+            'relative shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)] collapsed:translate-x-2',
+            'after:absolute after:-inset-2 after:rounded-full after:border after:border-line',
+            'after:opacity-0 after:transition-opacity collapsed:after:opacity-100',
+          )}
+        >
+          <span aria-hidden className={healthDotClass(health)} />
+        </span>
+        <span className={cn(LABEL, 'text-meta leading-tight text-faint')}>
+          {healthLabel(health)}
+        </span>
       </div>
     </nav>
   );

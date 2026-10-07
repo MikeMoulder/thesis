@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
 /*
+  The sidebar's collapsed state, as a variant: `collapsed:w-[70px]`.
+
+  Keyed off an attribute on <html> rather than React state because the root
+  layout sets it from localStorage before the first paint. A state read in an
+  effect arrives after the page has already been drawn open, which is the
+  flash this replaces.
+*/
+@custom-variant collapsed (&:where([data-panel="collapsed"], [data-panel="collapsed"] *));
+
+/*
   THESIS design tokens.
 
   Ground values are read off the live Orion build, not guessed:

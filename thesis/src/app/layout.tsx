@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 
+import { PANEL_SCRIPT } from '@/lib/panel';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -22,7 +24,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    // The script above edits this element before React hydrates it.
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Restores the collapsed sidebar before the first paint. Any later
+            and the panel is drawn open, then snaps shut. */}
+        <script dangerouslySetInnerHTML={{ __html: PANEL_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

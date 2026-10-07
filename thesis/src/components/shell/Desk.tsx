@@ -67,7 +67,6 @@ const STAGE_NARRATION: Record<RunStageId, string> = {
 };
 
 const STORAGE_KEY = 'thesis.sessions.v1';
-const PANEL_KEY = 'thesis.panel.collapsed.v1';
 const MAX_SESSIONS = 8;
 
 type Turn =
@@ -141,29 +140,6 @@ function saveSessions(sessions: Session[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
   } catch {
     // Quota or a blocked store: the desk keeps working for this session.
-  }
-}
-
-/**
- * Whether the panel is collapsed.
- *
- * Read on mount rather than in the initial state, so the server and the first
- * client render agree — a panel that hydrates at one width and snaps to another
- * is the same lie as a spinner for a run that is not running.
- */
-function loadCollapsed(): boolean {
-  try {
-    return localStorage.getItem(PANEL_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function saveCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(PANEL_KEY, collapsed ? '1' : '0');
-  } catch {
-    // Blocked storage: the preference lasts for this session only.
   }
 }
 
@@ -257,7 +233,6 @@ export function Desk({
   const [busy, setBusy] = useState(false);
   const [healthy, setHealthy] = useState<boolean | null>(null);
   const [pendingThesis, setPendingThesis] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   /*
@@ -275,7 +250,6 @@ export function Desk({
     const restored = loadSessions();
     setSessions(restored);
     setActiveId(restored[0]?.id ?? null);
-    setCollapsed(loadCollapsed());
   }, []);
 
   useEffect(() => {
@@ -647,13 +621,6 @@ export function Desk({
         sessions={summaries}
         activeId={activeId}
         sourcesHealthy={healthy}
-        collapsed={collapsed}
-        onToggle={() =>
-          setCollapsed((current) => {
-            saveCollapsed(!current);
-            return !current;
-          })
-        }
         onSelect={setActiveId}
         onNew={() => {
           setActiveId(null);

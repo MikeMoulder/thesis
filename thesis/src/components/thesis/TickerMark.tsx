@@ -27,13 +27,12 @@ import { cn } from '@/lib/utils';
   label beside it, so the logo read as the headline and the words read as a
   caption. It is an identifier, not the subject.
 
-  `rail` and `row` are the sidebar's original sizes and are deliberately NOT
-  scaled. They were tuned against the watchlist rows they sit in, where a mark
+  `row` is the sidebar's size, used in both of its states, and is deliberately
+  NOT scaled. It was tuned against the watchlist rows it sits in, where a mark
   shares its line with a ticker, a price and a change and has to hold its own
   against three columns of text.
 */
 const MARK_SIZE = {
-  rail: { px: 19, box: 'size-[19px]', text: 'text-[9px]' },
   row: { px: 22, box: 'size-[22px]', text: 'text-[9px]' },
   title: { px: 20, box: 'size-[20px]', text: 'text-[9px]' },
   hero: { px: 25, box: 'size-[25px]', text: 'text-[10px]' },
