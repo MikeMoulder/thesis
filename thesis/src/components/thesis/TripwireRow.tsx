@@ -4,7 +4,7 @@ import { Define } from '@/components/prose/Define';
 import { CountUp, Reveal } from '@/components/prose/Reveal';
 import { HeadroomBar } from '@/components/thesis/HeadroomBar';
 import { PlainCondition } from '@/components/thesis/PlainCondition';
-import { formatValue, type Evaluation, type EvalStatus } from '@/engine/breakers/evaluate';
+import { formatGap, formatValue, type Evaluation, type EvalStatus } from '@/engine/breakers/evaluate';
 import { PERCENT_METRICS, type Metric, type ThesisBreaker } from '@/engine/breakers/types';
 import { CitationChip } from '@/components/evidence/CitationChip';
 import { defineConcept } from '@/lib/glossary';
@@ -75,10 +75,7 @@ function meaning(breaker: ThesisBreaker, evaluation: Evaluation): string | null 
     anybody reads — formatValue gives "63.73B", and appends "%" only where the
     metric is a percentage.
   */
-  const magnitude = formatValue(breaker.metric, Math.abs(evaluation.headroom));
-  const gap = PERCENT_METRICS.has(breaker.metric)
-    ? `${magnitude.replace(/%$/, '')} points`
-    : magnitude;
+  const gap = formatGap(breaker.metric, evaluation.headroom);
   const cadence =
     breaker.cadence === 'periodic'
       ? 'and it can only change when the next quarterly report is filed'
@@ -102,6 +99,7 @@ export function TripwireRow({
   evaluation,
   watches,
   trend,
+  inline = false,
   className,
 }: {
   breaker: ThesisBreaker;
@@ -123,6 +121,15 @@ export function TripwireRow({
    * guess dressed as a reading.
    */
   trend?: HealthDriver | undefined;
+  /**
+   * Rendered inside the belief it watches, which already carries the status.
+   *
+   * So the row drops its own dot, number and status word, and the machine
+   * condition and severity at the foot: the sentence above it says the same
+   * thing in words, and repeating it in code is the noise that made the old
+   * page read as four copies of one list.
+   */
+  inline?: boolean;
   className?: string;
 }) {
   const status = evaluation?.status;
@@ -132,10 +139,18 @@ export function TripwireRow({
   const unrecovered = trend?.basis === 'unrecovered';
   const inherited = defineConcept(breaker.severityInherited ? 'inherited' : 'measured');
   const cadence = defineConcept(breaker.cadence);
+  // Inside a belief the row already sits indented under the statement.
+  const indent = inline ? '' : 'pl-[18px]';
 
   return (
-    <div className={cn('border-b border-line/60 py-4 last:border-b-0', className)}>
+    <div className={cn(inline ? 'py-1' : 'border-b border-line/60 py-4 last:border-b-0', className)}>
       {/* 1. what would have to happen */}
+      {inline ? (
+        <p className="flex flex-wrap items-baseline gap-x-1.5 text-base">
+          <span className="text-muted">Warns you</span>
+          <PlainCondition breaker={breaker} />
+        </p>
+      ) : (
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <span
           aria-hidden
@@ -163,12 +178,13 @@ export function TripwireRow({
           {unrecovered ? UNRECOVERED_WORD : status ? STATUS_WORD[status] : 'not checked yet'}
         </span>
       </div>
+      )}
 
       {/* 2. where it stands, as a picture */}
       {evaluation?.observed !== undefined &&
       evaluation.threshold !== undefined &&
       breaker.kind === 'threshold' ? (
-        <div className="mt-3 pl-[18px]">
+        <div className={cn('mt-3', indent)}>
           <p className="flex flex-wrap items-baseline gap-x-2 text-base">
             <span className="text-muted">Right now it is</span>
             {/*
@@ -203,13 +219,13 @@ export function TripwireRow({
 
       {/* 3. what that means */}
       {explain ? (
-        <p className="mt-2.5 max-w-prose pl-[18px] text-base text-muted">
+        <p className={cn('mt-2.5 max-w-prose text-base text-muted', indent)}>
           <Reveal text={explain} step={14} delay={220} />
         </p>
       ) : null}
 
       {unrecovered ? (
-        <p className="mt-2.5 max-w-prose pl-[18px] text-base text-fired/85">
+        <p className={cn('mt-2.5 max-w-prose text-base text-fired/85', indent)}>
           This fired recently and has come back inside the line, but not far enough to call it
           recovered. It stays broken until it clears the line properly, or holds inside it for
           three checks running.
@@ -217,21 +233,23 @@ export function TripwireRow({
       ) : null}
 
       {evaluation?.reason ? (
-        <p className="mt-2.5 max-w-prose pl-[18px] text-sm text-trust">{evaluation.reason}</p>
+        <p className={cn('mt-2.5 max-w-prose text-sm text-trust', indent)}>{evaluation.reason}</p>
       ) : null}
 
       {/* 4. the exact test and where the number came from */}
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1.5 pl-[18px]">
-        <span data-figure className="rounded-[4px] bg-code/10 px-[0.36em] py-[0.12em] text-meta text-code">
-          {breakerCondition(breaker)}
-        </span>
+      <div className={cn('mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1.5', indent)}>
+        {inline ? null : (
+          <span data-figure className="rounded-[4px] bg-code/10 px-[0.36em] py-[0.12em] text-meta text-code">
+            {breakerCondition(breaker)}
+          </span>
+        )}
         {evaluation?.provenance ? <CitationChip provenance={evaluation.provenance} /> : null}
         {cadence ? (
           <span className="text-meta uppercase tracking-[0.12em] text-faint">
             <Define definition={cadence} />
           </span>
         ) : null}
-        {inherited ? (
+        {inherited && !inline ? (
           <span className="text-meta uppercase tracking-[0.12em] text-faint">
             {breaker.severity} · <Define definition={inherited} />
           </span>

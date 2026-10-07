@@ -6,20 +6,16 @@ import { ArrowUp } from 'lucide-react';
 
 import { BaseRateDisclosure } from '@/components/thesis/BaseRateDisclosure';
 import { AnalysisBlock, BlockSection, type BlockStage } from '@/components/thesis/AnalysisBlock';
-import { AssumptionDiagram } from '@/components/thesis/AssumptionDiagram';
-import { RunHeadline } from '@/components/thesis/RunHeadline';
-import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { BeliefList, BeliefVerdict } from '@/components/thesis/BeliefList';
+import { deriveBeliefs } from '@/engine/beliefs';
 import { MyTheses } from '@/components/thesis/MyTheses';
 import { NextActions } from '@/components/thesis/NextActions';
-import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { SignalPanel, type SignalWithTicket } from '@/components/thesis/SignalPanel';
 import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
-import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { Prose } from '@/components/prose/emphasis';
 import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
 import { DotPattern } from '@/components/ui/DotPattern';
 import { deriveActions } from '@/engine/actions';
-import { deriveBrief } from '@/engine/brief';
 import type { Evaluation } from '@/engine/breakers/evaluate';
 import type { RunStageId } from '@/engine/run';
 import { IDLE_RUN, applyEvent, detectTicker, readEvents, type RunState } from '@/lib/run-client';
@@ -914,6 +910,14 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
   const breakersPending = state.stages.breakers !== 'done' && state.stages.breakers !== 'failed';
   const settled = !state.running;
   const thresholdBreakers = state.breakerSet?.breakers.filter((b) => b.kind === 'threshold') ?? [];
+  const beliefs = state.decomposition
+    ? deriveBeliefs({
+        decomposition: state.decomposition,
+        breakerSet: state.breakerSet,
+        evaluations: state.evaluations,
+        breakersPending,
+      })
+    : null;
 
   return (
     <AnalysisBlock
@@ -925,91 +929,42 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
         <p className="mb-5 max-w-prose text-base text-trust">{state.error.message}</p>
       ) : null}
 
-      {/* ---- 1. the shape of the bet, as soon as it is known ---- */}
-      {state.decomposition ? (
-        <BlockSection title="What this trade is standing on">
-          <AssumptionDiagram
-            decomposition={state.decomposition}
+      {/* ---- 1. the answer, once there is one ----
+          It used to arrive last, after four sections of evidence. A reader
+          deciding whether to keep reading needs it first. */}
+      {settled && beliefs ? <BeliefVerdict beliefs={beliefs} className="mb-8" /> : null}
+
+      {/* ---- 2. every belief, worst first, each with its own reading ----
+          Shown from the moment the decomposition lands, in the model's order,
+          and re-sorted only once the readings give it something to sort by. */}
+      {beliefs ? (
+        <BlockSection title={settled ? 'What it rests on, worst first' : 'What it rests on'}>
+          <BeliefList
+            beliefs={beliefs}
             breakerSet={state.breakerSet}
-            breakersPending={breakersPending}
+            evaluations={state.evaluations}
           />
         </BlockSection>
       ) : null}
 
-      {/* ---- 2. the same thing in words ---- */}
-      {state.decomposition ? (
-        <BlockSection title="Each one, in full">
-          <AssumptionTree
-            decomposition={state.decomposition}
-            breakerSet={state.breakerSet}
-            breakersPending={breakersPending}
+      {/* ---- 3. what to do about it ---- */}
+      {settled && state.decomposition ? (
+        <BlockSection title="What to do now" className="animate-rise">
+          <NextActions
+            actions={deriveActions(state.decomposition, state.breakerSet, state.evaluations)}
           />
         </BlockSection>
       ) : null}
 
-      {/* ---- 3. where each tripwire stands ---- */}
-      {state.breakerSet && state.breakerSet.breakers.length > 0 ? (
-        <BlockSection title="Where each tripwire stands right now">
-          {state.breakerSet.breakers.map((breaker, i) => (
-            <div
-              key={breaker.id}
-              className="animate-rise"
-              style={{ animationDelay: `${Math.min(i, 6) * 90}ms` }}
-            >
-              <TripwireRow
-                breaker={breaker}
-                evaluation={state.evaluations?.find((e) => e.breakerId === breaker.id)}
-                {...(state.decomposition
-                  ? {
-                      watches:
-                        state.decomposition.assumptions.findIndex(
-                          (a) => a.id === breaker.assumptionRef,
-                        ) + 1,
-                    }
-                  : {})}
-              />
-            </div>
-          ))}
-        </BlockSection>
-      ) : null}
-
-      {/* ---- 4. the historical record, fetched on demand ---- */}
+      {/* ---- 4. the historical record, folded until asked for ---- */}
       {settled && thresholdBreakers.length > 0 ? (
         <BlockSection title="What happened the other times these were true" tone="quiet">
-          <p className="mb-4 max-w-prose text-base text-muted">
-            A tripwire is only worth watching if crossing it has meant something before. Open one to
-            see every previous occurrence and what the share price did afterwards.
-          </p>
           <div className="flex flex-col gap-3.5">
             {thresholdBreakers.map((breaker) => (
               <BaseRateDisclosure key={breaker.id} ticker={ticker} breaker={breaker} />
             ))}
           </div>
         </BlockSection>
-      ) : null}
-
-      {/* ---- 5. and therefore. the conclusion the working earned ---- */}
-      {settled && state.decomposition ? (
-        <div className="animate-rise mt-12 border-t border-line-strong pt-8">
-          <RunHeadline
-            decomposition={state.decomposition}
-            breakerSet={state.breakerSet}
-            evaluations={state.evaluations}
-          />
-          {/* The brief first: what the work established, with the numbers.
-              The actions after it, because an action only makes sense once the
-              reader knows what it is an action ABOUT. */}
-          <BlockSection title="The brief" tone="lead" className="mt-8">
-            <ResearchBrief
-              brief={deriveBrief(state.decomposition, state.breakerSet, state.evaluations)}
-            />
-          </BlockSection>
-          <BlockSection title="What to do now" className="mt-8">
-            <NextActions
-              actions={deriveActions(state.decomposition, state.breakerSet, state.evaluations)}
-            />
-          </BlockSection>
-        </div>
       ) : null}
     </AnalysisBlock>
   );

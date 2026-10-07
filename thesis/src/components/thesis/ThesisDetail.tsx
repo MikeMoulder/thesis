@@ -1,14 +1,12 @@
 import Link from 'next/link';
 
 import { BlockSection } from '@/components/thesis/AnalysisBlock';
-import { AssumptionTree } from '@/components/thesis/AssumptionTree';
+import { BeliefList, BeliefVerdict } from '@/components/thesis/BeliefList';
 import { Autopsy } from '@/components/thesis/Autopsy';
-import { ResearchBrief } from '@/components/thesis/ResearchBrief';
 import { SessionContext } from '@/components/thesis/SessionContext';
 import { TickerMark } from '@/components/thesis/TickerMark';
-import { TripwireRow } from '@/components/thesis/TripwireRow';
 import { formatValue } from '@/engine/breakers/evaluate';
-import { deriveBrief } from '@/engine/brief';
+import { deriveBeliefs } from '@/engine/beliefs';
 import { deriveAutopsy } from '@/thesis/autopsy';
 import { formatRelative, formatStamp, isStale } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -256,6 +254,18 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
     ...a,
     directionUnknown: a.directionUnknown && !hasEarlier,
   }));
+  const beliefs = deriveBeliefs({
+    decomposition: version.decomposition,
+    breakerSet: version.breakerSet,
+    evaluations: check?.evaluations,
+    health: assumptionHealth,
+  });
+  // Plain data rather than a lookup function: the list renders on the client.
+  const trends: Record<string, HealthDriver> = {};
+  for (const breaker of breakers) {
+    const driver = driverFor(check, breaker.id);
+    if (driver) trends[breaker.id] = driver;
+  }
 
   return (
     <article className="mx-auto w-full max-w-2xl px-6 py-12">
@@ -345,45 +355,21 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
           />
         ) : null}
 
-        {/* The same closing brief a fresh run produces, built from the latest
-            check rather than from a live evaluation. A stored thesis deserves
-            the same summary as the run that created it. */}
-        {check ? (
-          <BlockSection title="The brief" tone="lead">
-            <ResearchBrief
-              brief={deriveBrief(version.decomposition, version.breakerSet, check.evaluations)}
-            />
-          </BlockSection>
-        ) : null}
-
-        <BlockSection title="What this trade is standing on">
-          <AssumptionTree
-            decomposition={version.decomposition}
+        {/* The verdict and every belief under it, worst first: the same layout
+            a fresh run on the desk ends in, read from the latest check. It
+            replaces a brief, a tree and a tripwire list that each repeated
+            the same beliefs. */}
+        <div className="mt-8">
+          <BeliefVerdict beliefs={beliefs} className="mb-8" />
+        </div>
+        <BlockSection title="What it rests on, worst first">
+          <BeliefList
+            beliefs={beliefs}
             breakerSet={version.breakerSet}
-            {...(assumptionHealth ? { health: assumptionHealth } : {})}
+            evaluations={check?.evaluations}
+            trends={trends}
           />
         </BlockSection>
-
-        {breakers.length > 0 ? (
-          <BlockSection title="Where each tripwire stands">
-            {breakers.map((breaker) => {
-              // Point back at the numbered line in the tree above rather than
-              // printing the engine's id for this breaker.
-              const watches =
-                version.decomposition.assumptions.findIndex((a) => a.id === breaker.assumptionRef) +
-                1;
-              return (
-                <TripwireRow
-                  key={breaker.id}
-                  breaker={breaker}
-                  evaluation={check?.evaluations.find((e) => e.breakerId === breaker.id)}
-                  {...(watches > 0 ? { watches } : {})}
-                  {...(driverFor(check, breaker.id) ? { trend: driverFor(check, breaker.id) } : {})}
-                />
-              );
-            })}
-          </BlockSection>
-        ) : null}
 
         {/* Who is pricing the token right now, while the tripwires above are
             still the reader's present tense. It sits AFTER them and before the
