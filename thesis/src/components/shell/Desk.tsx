@@ -9,6 +9,7 @@ import { AnalysisBlock, BlockSection, type BlockStage } from '@/components/thesi
 import { BeliefList, BeliefVerdict } from '@/components/thesis/BeliefList';
 import { deriveBeliefs } from '@/engine/beliefs';
 import { MyTheses } from '@/components/thesis/MyTheses';
+import { SharedBeliefs } from '@/components/thesis/SharedBeliefs';
 import { NextActions } from '@/components/thesis/NextActions';
 import { SignalPanel, type SignalWithTicket } from '@/components/thesis/SignalPanel';
 import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
@@ -742,6 +743,8 @@ function EmptyState({
           You wrote these down and said what would prove you wrong. Here is where each one stands.
         </Prose>
         <MyTheses theses={theses} now={now} className="mt-9" />
+        {/* Only meaningful with something to compare against. */}
+        {theses.length > 1 ? <SharedBeliefs className="mt-14" /> : null}
       </div>
     );
   }

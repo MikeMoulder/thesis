@@ -20,7 +20,7 @@ export const HEALTH_WORD: Record<Health, string> = {
   healthy: 'holding',
   weakening: 'at risk',
   broken: 'broken',
-  uncheckable: 'cannot tell',
+  uncheckable: "can't check",
 };
 
 export const HEALTH_TEXT: Record<Health, string> = {
