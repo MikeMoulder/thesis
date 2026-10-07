@@ -258,7 +258,7 @@ export function Desk({
   }, [handedTicker]);
 
   useEffect(() => {
-    fetch('/api/diag')
+    fetch('/api/diag?quick=1')
       .then((r) => r.json())
       .then((d: { ok?: boolean }) => setHealthy(Boolean(d.ok)))
       .catch(() => setHealthy(false));

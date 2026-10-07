@@ -43,17 +43,28 @@ async function timed<T>(name: string, run: () => Promise<T>): Promise<[Probe, T 
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const source = getDataSource();
   const probes: Probe[] = [];
 
-  // 1. Per-provider health, as the engine itself reports it.
-  const [healthProbe, health] = await timed('healthCheck', () => source.healthCheck());
-  probes.push(healthProbe);
+  /*
+    ?quick=1 answers the only question the sidebar asks: are the sources the
+    engine reads up. `ok` never depended on the Skills probe, but every page
+    still waited up to six seconds for it, so the health dot sat on
+    "checking sources…" for about seven. Quick mode leaves it out; the full
+    report is unchanged for anyone diagnosing a deployment.
+  */
+  const quick = new URL(request.url).searchParams.get('quick') === '1';
+  const skillsPending = quick ? Promise.resolve(null) : probeSignalSkills().catch(() => null);
 
-  // 2. Instrument resolution — Bitget instrument list + SEC ticker map.
-  const [resolveProbe, instrument] = await timed('resolve(NVDA)', () => source.resolve('NVDA'));
-  probes.push(resolveProbe);
+  // 1 and 2 are independent, so they run together rather than in turn.
+  //   1. Per-provider health, as the engine itself reports it.
+  //   2. Instrument resolution — Bitget instrument list + SEC ticker map.
+  const [[healthProbe, health], [resolveProbe, instrument]] = await Promise.all([
+    timed('healthCheck', () => source.healthCheck()),
+    timed('resolve(NVDA)', () => source.resolve('NVDA')),
+  ]);
+  probes.push(healthProbe, resolveProbe);
 
   // 3. The call that actually matters: a live rToken quote from Bitget.
   //    This is the one most likely to be geo-blocked.
@@ -82,8 +93,9 @@ export async function GET() {
   //    responsible when one did not.
   //
   //    Bounded at six seconds per tool and run in parallel, because the
-  //    failing ones take 17 to 32 seconds to return nothing.
-  const skills = await probeSignalSkills().catch(() => null);
+  //    failing ones take 17 to 32 seconds to return nothing. Started at the
+  //    top, alongside everything else, and skipped in quick mode.
+  const skills = await skillsPending;
 
   const allOk = probes.every((p) => p.ok);
 
@@ -99,14 +111,16 @@ export async function GET() {
       probes,
       providers: health?.providers ?? null,
       quote,
-      signalSkills: skills
-        ? {
-            transport: 'mcp',
-            answering: skills.filter((s) => s.ok).length,
-            total: skills.length,
-            tools: skills,
-          }
-        : { transport: 'mcp', answering: 0, total: 0, tools: [], detail: 'MCP handshake failed' },
+      signalSkills: quick
+        ? { transport: 'mcp', skipped: 'quick check' }
+        : skills
+          ? {
+              transport: 'mcp',
+              answering: skills.filter((s) => s.ok).length,
+              total: skills.length,
+              tools: skills,
+            }
+          : { transport: 'mcp', answering: 0, total: 0, tools: [], detail: 'MCP handshake failed' },
       checkedAt: new Date().toISOString(),
     },
     {

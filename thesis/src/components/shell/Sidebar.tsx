@@ -263,7 +263,7 @@ export function Sidebar({
   useEffect(() => {
     if (!uncontrolledHealth) return;
     let live = true;
-    fetch('/api/diag')
+    fetch('/api/diag?quick=1')
       .then((r) => r.json())
       .then((d: { ok?: boolean }) => live && setOwnHealthy(Boolean(d.ok)))
       .catch(() => live && setOwnHealthy(false));
