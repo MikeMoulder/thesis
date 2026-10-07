@@ -22,6 +22,11 @@ export interface RunState {
   evaluations?: Evaluation[];
   meta?: { modelCalls: number; latencyMs: number; models: string[] };
   error?: { message: string; kind: ErrorKind };
+  /**
+   * Whether the run was kept as a watched thesis. Set by the desk from the
+   * save endpoint's own events, after the analysis itself has finished.
+   */
+  saved?: { id: string } | { failed: string };
 }
 
 export const IDLE_RUN: RunState = {

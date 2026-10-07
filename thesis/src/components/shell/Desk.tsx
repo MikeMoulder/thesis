@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 
 import { BaseRateDisclosure } from '@/components/thesis/BaseRateDisclosure';
@@ -241,6 +242,7 @@ export function Desk({
     the URL instead and this picks it up, so the row behaves the same wherever
     it is clicked: it seeds the sentence and leaves the reasoning to the person.
   */
+  const router = useRouter();
   const params = useSearchParams();
   const handedTicker = params.get('ticker');
 
@@ -317,7 +319,14 @@ export function Desk({
         }));
 
       try {
-        const response = await fetch('/api/attack', {
+        /*
+          /api/thesis, not /api/attack. Both stream the same analysis; this one
+          also KEEPS it, as a thesis owned by this visitor and re-checked every
+          fifteen minutes. The desk used to call /api/attack, so every run was
+          forgotten the moment the tab closed and nothing a visitor wrote ever
+          joined the loop the rest of the product describes.
+        */
+        const response = await fetch('/api/thesis', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ticker, thesis }),
@@ -347,6 +356,23 @@ export function Desk({
         */
         let released = false;
         for await (const event of readEvents(response.body)) {
+          const saveEvent = event as unknown as
+            | { type: 'saved'; thesis: { id: string } }
+            | { type: 'savefailed'; message: string }
+            | { type: string };
+          if (saveEvent.type === 'saved' && 'thesis' in saveEvent) {
+            const id = saveEvent.thesis.id;
+            patchRun((state) => ({ ...state, saved: { id } }));
+            // The front page list is server-rendered; this puts the new
+            // thesis on it without leaving the conversation.
+            router.refresh();
+            continue;
+          }
+          if (saveEvent.type === 'savefailed' && 'message' in saveEvent) {
+            const failed = saveEvent.message;
+            patchRun((state) => ({ ...state, saved: { failed } }));
+            continue;
+          }
           patchRun((state) => applyEvent(state, event));
           if (
             !released &&
@@ -372,7 +398,7 @@ export function Desk({
         setBusy(false);
       }
     },
-    [patchSession],
+    [patchSession, router],
   );
 
   // ---- preset stress tests ------------------------------------------------
@@ -965,6 +991,24 @@ function RunView({ turn }: { turn: Extract<Turn, { kind: 'run' }> }) {
             actions={deriveActions(state.decomposition, state.breakerSet, state.evaluations)}
           />
         </BlockSection>
+      ) : null}
+
+      {/* ---- the run is now a watched thesis, or says why not ---- */}
+      {settled && state.saved ? (
+        'id' in state.saved ? (
+          <p className="animate-rise mt-6 flex flex-wrap items-baseline gap-x-2 text-sm text-muted">
+            <span aria-hidden className="relative top-[-1px] size-[6px] rounded-full bg-muted" />
+            Kept as one of your theses. It is re-checked every fifteen minutes from here on.
+            <Link
+              href={`/thesis/${state.saved.id}`}
+              className="text-text underline-offset-2 hover:underline"
+            >
+              Open its page
+            </Link>
+          </p>
+        ) : (
+          <p className="animate-rise mt-6 max-w-prose text-sm text-trust">{state.saved.failed}</p>
+        )
       ) : null}
 
       {/* ---- 4. the historical record, folded until asked for ---- */}
