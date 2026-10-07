@@ -312,7 +312,9 @@ export function ThesisDetail({ thesis }: { thesis: ThesisRecord }) {
           a watchlist row wearing a different hat; a page that leads with what
           you claimed is a promise you made and are now on the hook for.
         */}
-        <p className="mt-3 max-w-[38ch] text-[1.45rem] font-medium leading-[1.3] tracking-[-0.01em] text-text">
+        {/* Smaller on a phone, where at desktop size a long thesis filled the
+            whole first screen before any of the analysis could be seen. */}
+        <p className="mt-3 max-w-[38ch] text-[1.15rem] font-medium leading-[1.35] tracking-[-0.01em] text-text md:text-[1.45rem] md:leading-[1.3]">
           {version.statement}
         </p>
 

@@ -14,6 +14,7 @@ import { NextActions } from '@/components/thesis/NextActions';
 import { SignalPanel, type SignalWithTicket } from '@/components/thesis/SignalPanel';
 import { StressPanel, type StressRow, type StressSkip } from '@/components/thesis/StressPanel';
 import { Prose } from '@/components/prose/emphasis';
+import { MobileNav } from '@/components/shell/MobileNav';
 import { Sidebar, type SessionSummary } from '@/components/shell/Sidebar';
 import { DotPattern } from '@/components/ui/DotPattern';
 import { deriveActions } from '@/engine/actions';
@@ -266,6 +267,9 @@ export function Desk({
   const active = sessions.find((s) => s.id === activeId) ?? null;
 
   useEffect(() => {
+    // Only a conversation follows its newest turn. The landing has none, and
+    // scrolling it to the bottom opened phones below their own heading.
+    if (!active) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [active?.turns.length, busy]);
 
@@ -612,30 +616,34 @@ export function Desk({
     untested: untestedCount(s),
   }));
 
-  return (
-    <div className="flex h-dvh overflow-hidden">
-      <Sidebar
-        sessions={summaries}
-        activeId={activeId}
-        sourcesHealthy={healthy}
-        onSelect={setActiveId}
-        onNew={() => {
-          setActiveId(null);
-          setPendingThesis(null);
-          setDraft('');
-        }}
-        onPickTicker={(ticker) => {
-          // A watchlist row is a starting point, not a query: it seeds the
-          // sentence and leaves the reasoning — the part that gets attacked —
-          // for the person to write.
-          setActiveId(null);
-          setPendingThesis(null);
-          setDraft(`I'm long ${ticker} because `);
-        }}
-        className="hidden md:flex"
-      />
+  const sidebarProps = {
+    sessions: summaries,
+    activeId,
+    sourcesHealthy: healthy,
+    onSelect: setActiveId,
+    onNew: () => {
+      setActiveId(null);
+      setPendingThesis(null);
+      setDraft('');
+    },
+    onPickTicker: (ticker: string) => {
+      // A watchlist row is a starting point, not a query: it seeds the
+      // sentence and leaves the reasoning — the part that gets attacked —
+      // for the person to write.
+      setActiveId(null);
+      setPendingThesis(null);
+      setDraft(`I'm long ${ticker} because `);
+    },
+  };
 
-      <main className="flex min-w-0 flex-1 flex-col">
+  return (
+    // A column on phones, where the menu is a bar across the top; a row from
+    // md up, where it is the sidebar down the left.
+    <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
+      <MobileNav {...sidebarProps} />
+      <Sidebar {...sidebarProps} className="hidden md:flex" />
+
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1 overflow-y-auto">
           {/* The dot field is for an EMPTY desk. With theses on screen it is
               texture behind content, which is noise. */}

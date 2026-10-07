@@ -7,8 +7,11 @@
   layout sets it from localStorage before the first paint. A state read in an
   effect arrives after the page has already been drawn open, which is the
   flash this replaces.
+
+  Anything inside [data-panel-open] ignores it: the phone menu shows the
+  sidebar fully open whatever the desktop preference is.
 */
-@custom-variant collapsed (&:where([data-panel="collapsed"], [data-panel="collapsed"] *));
+@custom-variant collapsed (&:where([data-panel="collapsed"], [data-panel="collapsed"] *):not(:where([data-panel-open], [data-panel-open] *)));
 
 /*
   THESIS design tokens.

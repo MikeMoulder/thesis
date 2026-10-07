@@ -215,6 +215,7 @@ export function Sidebar({
   onSelect,
   onNew,
   onPickTicker,
+  forceOpen = false,
   className,
 }: {
   sessions?: SessionSummary[];
@@ -226,6 +227,13 @@ export function Sidebar({
   onNew?: (() => void) | undefined;
   /** Omit to make a watchlist row navigate to the desk instead. */
   onPickTicker?: ((ticker: string) => void) | undefined;
+  /**
+   * Always open, whatever the desktop preference. For the phone menu, where a
+   * 70px rail inside a drawer would be a menu with nothing in it. It also
+   * drops the collapse control, which would change the DESKTOP setting from a
+   * phone.
+   */
+  forceOpen?: boolean;
   className?: string;
 } = {}) {
   const router = useRouter();
@@ -243,8 +251,9 @@ export function Sidebar({
     head script set data-panel before the first paint. This only catches React
     up, so focus and the toggle's label match what is on screen.
   */
-  const [collapsed, setCollapsed] = useState(false);
+  const [storedCollapsed, setCollapsed] = useState(false);
   useEffect(() => setCollapsed(readCollapsed()), []);
+  const collapsed = forceOpen ? false : storedCollapsed;
 
   const toggle = () => {
     writeCollapsed(!collapsed);
@@ -290,6 +299,7 @@ export function Sidebar({
   return (
     <nav
       aria-label="Theses and watchlist"
+      {...(forceOpen ? { 'data-panel-open': '' } : {})}
       className={cn(
         'flex w-[272px] shrink-0 flex-col gap-1 overflow-hidden px-3 py-3',
         'transition-[width] duration-200 ease-[cubic-bezier(0.2,0,0,1)] collapsed:w-[70px]',
@@ -314,20 +324,22 @@ export function Sidebar({
         <span className={cn(LABEL, 'text-base font-medium tracking-[-0.01em] text-text')}>
           THESIS
         </span>
-        <button
-          type="button"
-          onClick={toggle}
-          inert={collapsed}
-          aria-label="Collapse panel"
-          aria-expanded
-          title="Collapse panel"
-          className={cn(
-            FADE,
-            'ml-auto shrink-0 rounded-[7px] p-1 text-faint hover:bg-raised hover:text-text',
-          )}
-        >
-          <PanelLeftClose size={15} strokeWidth={1.5} />
-        </button>
+        {forceOpen ? null : (
+          <button
+            type="button"
+            onClick={toggle}
+            inert={collapsed}
+            aria-label="Collapse panel"
+            aria-expanded
+            title="Collapse panel"
+            className={cn(
+              FADE,
+              'ml-auto shrink-0 rounded-[7px] p-1 text-faint hover:bg-raised hover:text-text',
+            )}
+          >
+            <PanelLeftClose size={15} strokeWidth={1.5} />
+          </button>
+        )}
       </div>
 
       <button

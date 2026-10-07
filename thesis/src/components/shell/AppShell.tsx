@@ -1,3 +1,4 @@
+import { MobileNav } from '@/components/shell/MobileNav';
 import { Sidebar } from '@/components/shell/Sidebar';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,9 @@ import { cn } from '@/lib/utils';
  * second layout to keep in step with the first.
  *
  * Hidden below the `md` breakpoint, matching the Desk. A 240px rail on a phone
- * takes two thirds of the screen away from the thing the reader came for.
+ * takes two thirds of the screen away from the thing the reader came for, so
+ * phones get MobileNav instead: a bar across the top and the same sidebar in
+ * a drawer.
  */
 export function AppShell({
   children,
@@ -25,9 +28,10 @@ export function AppShell({
   className?: string;
 }) {
   return (
-    <div className={cn('flex h-dvh overflow-hidden', className)}>
+    <div className={cn('flex h-dvh flex-col overflow-hidden md:flex-row', className)}>
+      <MobileNav />
       <Sidebar className="hidden md:flex" />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
