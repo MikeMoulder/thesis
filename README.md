@@ -285,6 +285,12 @@ Four details in that handshake, each one a specific failure avoided:
 | One chat holds one binding, re-binding replaces | Press the button twice and you would otherwise get every alert twice, and assume the product is broken |
 | The alphabet excludes O, 0, I, 1 and L | You read this off a laptop and type it into a phone. "Was that an oh or a zero" is a conversation no product should have |
 
+### Your theses are yours, with no sign-up
+
+Every visitor gets a private identity on their first request: a random id in a signed, httpOnly cookie. There is no login screen, because a wall in front of a demo is where most people stop. Every analysis you run on the desk is kept as your own watched thesis, re-checked every fifteen minutes, and shown to nobody else: not on the front page, not in search, not in the activity feed, not in the cross-thesis view, and not in anyone else's Telegram. Someone else's thesis answers exactly like one that does not exist.
+
+**The same code is also how you sign in.** Press **Sign in with Telegram** on a second device and send the code from a Telegram account that is already connected: that browser becomes you, and anything it wrote while anonymous comes with it. No password and no email, and the proof is the same one the alerts already rely on: only the person holding the Telegram account can relay the code.
+
 ### The bot understands four things
 
 ```text
@@ -532,7 +538,7 @@ npm run tg:check                  confirm Telegram is connected
 - **No news source is connected**, so tripwires that would depend on events are honestly reported as uncovered.
 - **No market holiday calendar.** On Thanksgiving the overnight panel hides instead of appearing. We chose the direction that shows less rather than the one that could state something false.
 - **THESIS cannot trade.** By design, permanently.
-- **Two theses are seeded** on the live deployment so there is something with real history to look at. You can add your own from the front page and it joins the same loop.
+- **Two public examples** (TSLA and NVDA) stay visible to every visitor and changeable by none, so a first visit lands on weeks of real history instead of an empty desk.
 
 ## Where this goes
 
@@ -544,7 +550,7 @@ npm run tg:check                  confirm Telegram is connected
 2. **Analyst consensus as a tripwire source.** "The market has not already priced this in" is the belief THESIS most often reports as uncheckable. Consensus estimates turn it into a number.
 3. **A shareable card per thesis**, so a link posted anywhere shows the verdict, not just the name.
 4. **A market holiday calendar.**
-5. **Accounts**, so more than one person's theses can live on one deployment.
+5. **Sign in with Bitget**, alongside Telegram, once its OAuth is documented for third parties.
 
 **The idea it is heading towards:** a research desk that remembers every reason you have ever given for a trade, and is honest with you about which ones kept working. Not a tool that tells you what to buy. A tool that will not let you quietly forget what you said.
 
