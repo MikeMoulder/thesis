@@ -2,7 +2,9 @@
 
 **Write down why you are buying something. THESIS takes that sentence apart, finds every belief hiding inside it, puts an exact number under each one, and then watches those numbers around the clock so you learn you were wrong from the data instead of from the price.**
 
-[Open the live desk](https://thesis-stocks.vercel.app) · [A thesis under observation](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-stocks.vercel.app/activity) · [Source health, live](https://thesis-stocks.vercel.app/api/diag)
+[Open the live desk](https://thesis-stocks.vercel.app) · [A thesis under observation](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-stocks.vercel.app/activity) · [Source health, live](https://thesis-stocks.vercel.app/api/diag) · [One research task, end to end](docs/walkthrough.md)
+
+![An AMD thesis attacked on the desk. The verdict comes first: 2 of the 5 things the trade rests on have already broken. Under it, each belief with its own status, live reading and source, worst first.](docs/images/analysis.png)
 
 Built for the **Bitget AI Base Camp Hackathon S2**, on the **Bitget Agent Hub SDK**, **Qwen** through Bitget's hackathon gateway, and the **bitget-signal Skills**.
 
@@ -43,6 +45,9 @@ One loop, and it never stops turning.
 
 7. Later, THESIS grades its own record: what held, what broke, and how
    many days of warning you actually got before it did.
+
+8. Across every thesis you hold, it finds the beliefs they share, and
+   the ones that quietly bet against each other.
 ```
 
 Steps 4 through 7 are the part almost nothing else does. Plenty of tools will summarise a stock. This one writes down what would prove you wrong, then holds you to it.
@@ -82,6 +87,23 @@ Out of that log, the product prints one sentence about itself:
 Fourteen days. Not a backtest, not a promise, a measurement taken from its own record. And on the NVDA thesis next to it, where nothing has broken, it refuses to take a victory lap: *"Nothing has broken yet. That is not the same as nothing being at risk, and it says nothing at all about the parts no tripwire covers."*
 
 **A product that only prints its wins is a brochure. This one prints the misses too, which is the only reason to believe the wins.**
+
+---
+
+## Across your theses
+
+Every other screen looks at one position. That hides the most expensive mistake a person with several positions can make, so the front page reads them side by side.
+
+![What the two live theses have in common: AI infrastructure spending, pulling against each other, and calm markets, exposed together.](docs/images/shared-beliefs.png)
+
+On the live deployment right now it finds two things neither thesis page could show:
+
+- **Pulling against each other: AI infrastructure spending.** The TSLA thesis needs AI and robotaxi spending to roll off so margins recover. The NVDA thesis needs AI infrastructure spending to keep accelerating. They cannot both be right, and Tesla is one of the companies buying from Nvidia.
+- **Exposed together: calm markets.** Both carry tripwires on market-wide price swings, so one sell-off trips them at the same time.
+
+A model reads every belief across every thesis and groups the ones that depend on the same outside driver. For each belief it answers one narrow question: does this position need **more** or **less** of that driver? Code then works out "together" or "against each other" from those answers. Asked for that label directly, the model wrote "shared" above its own sentence explaining that the two needed opposite things; asked per belief, it was right three times out of three.
+
+Code also throws away anything it cannot verify: references to beliefs that do not exist, "shared" groups inside a single thesis, beliefs with no direction. Plain rules add the overlaps visible in the tripwires themselves, and stand in alone if the model is unavailable. The answer is cached until a thesis is added or revised, so a re-check every fifteen minutes costs nothing.
 
 ---
 
@@ -506,6 +528,7 @@ npm run tg:check                  confirm Telegram is connected
 ## Limitations
 
 - **One of five Bitget Skills works.** Their upstreams are down, not ours. We probe live and report it.
+- **Bitget's US stock data service is not wired in yet.** `bitget-mcp-server` (agent.bitget.com/mcp) carries earnings calendars, analyst targets, consensus and news, and would close the next gap on this list. Its MCP layer answers, but every data query returned 503 when we tried on 7 October, and we will not ship a parser for responses we have never seen.
 - **No news source is connected**, so tripwires that would depend on events are honestly reported as uncovered.
 - **No market holiday calendar.** On Thanksgiving the overnight panel hides instead of appearing. We chose the direction that shows less rather than the one that could state something false.
 - **THESIS cannot trade.** By design, permanently.
@@ -515,7 +538,13 @@ npm run tg:check                  confirm Telegram is connected
 
 **Built and running:** everything described above.
 
-**Next:** a working news source so event-driven tripwires can be covered. A market holiday calendar. More than one person's theses on one deployment.
+**Next, in order:**
+
+1. **News and earnings from Bitget's own data service.** Event tripwires ("Nvidia announces aggressive pricing") get a feed instead of "watch for it yourself", and quarterly tripwires show the date they can next move: "next chance to move: earnings on 28 October, in 21 days".
+2. **Analyst consensus as a tripwire source.** "The market has not already priced this in" is the belief THESIS most often reports as uncheckable. Consensus estimates turn it into a number.
+3. **A shareable card per thesis**, so a link posted anywhere shows the verdict, not just the name.
+4. **A market holiday calendar.**
+5. **Accounts**, so more than one person's theses can live on one deployment.
 
 **The idea it is heading towards:** a research desk that remembers every reason you have ever given for a trade, and is honest with you about which ones kept working. Not a tool that tells you what to buy. A tool that will not let you quietly forget what you said.
 
