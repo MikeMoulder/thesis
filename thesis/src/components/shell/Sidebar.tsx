@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PanelLeftClose, Plus, Search } from 'lucide-react';
+import { PanelLeftClose, Plus, Search, X } from 'lucide-react';
 
 import type { WatchRow } from '@/app/api/watchlist/route';
 import { TelegramBind } from '@/components/shell/TelegramBind';
+import { ThesisSearch } from '@/components/shell/ThesisSearch';
 import { TickerMark } from '@/components/thesis/TickerMark';
 import { readCollapsed, writeCollapsed } from '@/lib/panel';
 import { cn } from '@/lib/utils';
@@ -255,7 +256,23 @@ export function Sidebar({
   useEffect(() => setCollapsed(readCollapsed()), []);
   const collapsed = forceOpen ? false : storedCollapsed;
 
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const stopSearch = () => {
+    setSearching(false);
+    setQuery('');
+  };
+  // From the rail, search opens the panel first: results need the width.
+  const startSearch = () => {
+    if (collapsed) {
+      writeCollapsed(false);
+      setCollapsed(false);
+    }
+    setSearching(true);
+  };
+
   const toggle = () => {
+    if (!collapsed) stopSearch();
     writeCollapsed(!collapsed);
     setCollapsed(!collapsed);
   };
@@ -353,91 +370,137 @@ export function Sidebar({
         </RowIcon>
         <span className={LABEL}>New thesis</span>
       </button>
-      <button
-        type="button"
-        onClick={startNew}
-        title={collapsed ? 'Search theses' : undefined}
-        className={rowClass()}
-      >
-        <RowIcon>
-          <Search size={15} strokeWidth={1.5} aria-hidden />
-        </RowIcon>
-        <span className={LABEL}>Search theses</span>
-      </button>
+      {searching ? (
+        <label className={cn(rowClass(), 'bg-raised text-text')}>
+          <RowIcon>
+            <Search size={15} strokeWidth={1.5} aria-hidden />
+          </RowIcon>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              // Closes the search, not the phone menu around it.
+              e.stopPropagation();
+              stopSearch();
+            }}
+            onBlur={() => {
+              if (!query.trim()) stopSearch();
+            }}
+            placeholder="Search theses"
+            aria-label="Search theses"
+            className="min-w-0 flex-1 bg-transparent text-base text-text outline-none placeholder:text-faint"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={stopSearch}
+              aria-label="Clear search"
+              className="shrink-0 text-faint hover:text-text"
+            >
+              <X size={14} strokeWidth={1.5} aria-hidden />
+            </button>
+          ) : null}
+        </label>
+      ) : (
+        <button
+          type="button"
+          onClick={startSearch}
+          title={collapsed ? 'Search theses' : undefined}
+          className={rowClass()}
+        >
+          <RowIcon>
+            <Search size={15} strokeWidth={1.5} aria-hidden />
+          </RowIcon>
+          <span className={LABEL}>Search theses</span>
+        </button>
+      )}
 
       {/* overflow-x stays hidden in both states. Mid-animation the content is
           wider than the column, and a scrollbar would flash across the rail. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto collapsed:overflow-y-hidden">
-        <div className={cn(FADE, 'w-[248px] shrink-0')} aria-hidden={collapsed}>
-          <WatchHeader />
-        </div>
-        {watch === null ? (
-          <p className={cn(LABEL, 'px-3 py-1 text-sm text-faint')}>Loading prices…</p>
+        {searching ? (
+          <ThesisSearch
+            query={query}
+            sessions={sessions}
+            onSelectSession={select}
+            onDone={stopSearch}
+          />
         ) : (
-          watch.map((row, i) => {
-            const offRail = i >= RAIL_WATCH_LIMIT;
-            return (
-              <button
-                key={row.ticker}
-                type="button"
-                onClick={() => pickTicker(row.ticker)}
-                inert={collapsed && offRail}
-                className={cn(rowClass(), 'shrink-0', offRail && FADE)}
-                title={
-                  collapsed
-                    ? `${row.ticker}${row.last === undefined ? '' : ` · ${row.last.toFixed(2)}`}`
-                    : (row.name ?? row.ticker)
-                }
-              >
-                <TickerMark ticker={row.ticker} />
-                {/* Fixed at the expanded width so the columns never reflow
-                    while the panel moves. 190 = 248 - 24 padding - 22 mark - 12 gap. */}
-                <span className={cn(FADE, 'flex w-[190px] shrink-0 items-center gap-3')}>
-                  <span data-figure className="w-12 shrink-0 text-sm text-text">
-                    {row.ticker}
-                  </span>
-                  <span data-num className="flex-1 text-right text-sm tabular-nums text-muted">
-                    {row.last === undefined ? '—' : row.last.toFixed(2)}
-                  </span>
-                  <span className="w-14 shrink-0 text-right">
-                    <Change pct={row.changePct24h} />
-                  </span>
-                </span>
-              </button>
-            );
-          })
-        )}
-
-        {sessions.length > 0 ? (
-          <div className={cn(FADE, 'w-[248px] shrink-0')} inert={collapsed}>
-            <SectionLabel>Your theses</SectionLabel>
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => select(session.id)}
-                className={rowClass(session.id === activeId)}
-              >
-                <span data-figure className="shrink-0 text-sm">
-                  {session.ticker}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-faint">
-                  {session.thesis}
-                </span>
-                {session.untested > 0 ? (
-                  <span
-                    className="shrink-0 text-meta text-trust"
-                    title={`${session.untested} thing${
-                      session.untested === 1 ? '' : 's'
-                    } holding this up that nothing can check`}
+          <>
+            <div className={cn(FADE, 'w-[248px] shrink-0')} aria-hidden={collapsed}>
+              <WatchHeader />
+            </div>
+            {watch === null ? (
+              <p className={cn(LABEL, 'px-3 py-1 text-sm text-faint')}>Loading prices…</p>
+            ) : (
+              watch.map((row, i) => {
+                const offRail = i >= RAIL_WATCH_LIMIT;
+                return (
+                  <button
+                    key={row.ticker}
+                    type="button"
+                    onClick={() => pickTicker(row.ticker)}
+                    inert={collapsed && offRail}
+                    className={cn(rowClass(), 'shrink-0', offRail && FADE)}
+                    title={
+                      collapsed
+                        ? `${row.ticker}${row.last === undefined ? '' : ` · ${row.last.toFixed(2)}`}`
+                        : (row.name ?? row.ticker)
+                    }
                   >
-                    {session.untested}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        ) : null}
+                    <TickerMark ticker={row.ticker} />
+                    {/* Fixed at the expanded width so the columns never reflow
+                        while the panel moves. 190 = 248 - 24 padding - 22 mark - 12 gap. */}
+                    <span className={cn(FADE, 'flex w-[190px] shrink-0 items-center gap-3')}>
+                      <span data-figure className="w-12 shrink-0 text-sm text-text">
+                        {row.ticker}
+                      </span>
+                      <span data-num className="flex-1 text-right text-sm tabular-nums text-muted">
+                        {row.last === undefined ? '—' : row.last.toFixed(2)}
+                      </span>
+                      <span className="w-14 shrink-0 text-right">
+                        <Change pct={row.changePct24h} />
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+
+            {sessions.length > 0 ? (
+              <div className={cn(FADE, 'w-[248px] shrink-0')} inert={collapsed}>
+                <SectionLabel>Your theses</SectionLabel>
+                {sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => select(session.id)}
+                    className={rowClass(session.id === activeId)}
+                  >
+                    <span data-figure className="shrink-0 text-sm">
+                      {session.ticker}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-faint">
+                      {session.thesis}
+                    </span>
+                    {session.untested > 0 ? (
+                      <span
+                        className="shrink-0 text-meta text-trust"
+                        title={`${session.untested} thing${
+                          session.untested === 1 ? '' : 's'
+                        } holding this up that nothing can check`}
+                      >
+                        {session.untested}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
 
       {/* Where Orion pins an account row. THESIS has no wallet to show, so this
