@@ -279,7 +279,7 @@ Open http://localhost:3100 and type a thesis.
 To check the parts that do not need any keys:
 
 ```bash
-npm test                          794 tests, no network, no keys needed
+npm test                          826 tests, no network, no keys needed
 npm run health                    are Bitget, Yahoo and SEC reachable
 npm run qwen:check -- 3 --compare prove the sponsor model answers
 npm run cron:check                is the 15 minute loop actually running

@@ -87,7 +87,7 @@ stored log per thesis                                 500 checks: 76 reconstruct
 **Engineering:**
 
 ```text
-self-tests                    794 passed, 0 failed, 21 suites     [observed]
+self-tests                    826 passed, 0 failed, 22 suites     [observed]
 runs with no network or keys  yes, reproducible on any machine    [observed]
 source health for the UI      1.1s (was 7s)                        [observed]
 ```
@@ -117,6 +117,7 @@ Every one of these is measurable from data the product already stores: owned the
 - Bitget Agent Hub SDK: the tokenized stock catalogue, 24/7 prices, candles and the order book
 - SEC EDGAR fundamentals, linked to the exact filing behind every number
 - A 15-minute re-check loop, running since 16 September; Telegram alerts routed to each thesis's owner
+- Event tripwires watched through Google News search: headlines that may report the event, shown with links, never treated as a verdict
 - Verdict-first analysis: one list of beliefs, worst first, each with its own gauge and source
 - Cross-thesis view: shared and opposed beliefs across a person's positions
 - Private theses with no sign-up; Sign in with Telegram for other devices
@@ -133,11 +134,11 @@ Every one of these is measurable from data the product already stores: owned the
 - **History was being trimmed away.** The log kept only the newest 500 checks, about five days, and lost every older change of state. It now drops routine checks first and always keeps the record.
 - **Strangers' theses were visible and deletable.** Fixed with private identities and owner-only changes.
 
-**Not built yet:** a news feed (event tripwires say "watch for this yourself"); Bitget's US stock data service, `bitget-mcp-server`, which returned 503 on every data query when we integrated on 7 October; a market holiday calendar.
+**Not built yet:** reading news articles (event tripwires are matched on headlines, shown as "may report this", never as a verdict); Bitget's US stock data service, `bitget-mcp-server`, which returned 503 on every data query when we integrated on 7 October; a market holiday calendar.
 
 **Next:** news and earnings dates from Bitget's data service once it answers; analyst consensus as a tripwire source; a shareable card per thesis.
 
-**Stack:** Next.js 16, TypeScript, Upstash Redis, Vercel; Bitget Agent Hub SDK, bitget-signal Skills over MCP; SEC EDGAR; Yahoo Finance for long price history; Gemini 3.5 Flash Lite and Qwen 3.8 Max; Telegram Bot API.
+**Stack:** Next.js 16, TypeScript, Upstash Redis, Vercel; Bitget Agent Hub SDK, bitget-signal Skills over MCP; SEC EDGAR; Yahoo Finance for long price history; Google News search RSS for event tripwires; Gemini 3.5 Flash Lite and Qwen 3.8 Max; Telegram Bot API.
 
 ### 5. Deliverables
 
@@ -149,7 +150,7 @@ Everything is reachable from the one link in "Submission Materials Link":
 - **Live source health:** https://thesis-stocks.vercel.app/api/diag
 - **Source code and README:** https://github.com/MikeMoulder/thesis
 - **The required complete research task, question to actionable insight:** https://github.com/MikeMoulder/thesis/blob/main/docs/walkthrough.md
-- **Test logs:** in the README; `npm test` reproduces 794 checks offline.
+- **Test logs:** in the README; `npm test` reproduces 826 checks offline.
 
 ### 6. Our take on AI trading
 

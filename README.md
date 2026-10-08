@@ -422,8 +422,9 @@ session        30 passed, 0 failed     market hours, both sides of DST
 beliefs        24 passed, 0 failed     verdict-first list, unit formats
 overlap        23 passed, 0 failed     shared and opposed beliefs across theses
 identity       38 passed, 0 failed     private theses, Telegram sign-in
+news           32 passed, 0 failed     headlines for event tripwires, never a verdict
 -----------------------------------------------------------------------
-TOTAL         794 passed, 0 failed
+TOTAL         826 passed, 0 failed
 
 $ npm run typecheck
 tsc --noEmit                            clean
@@ -494,7 +495,7 @@ THESIS **cannot place a trade** and holds no exchange key. Bitget hands an agent
 
 Checked against the exchange's real rules before you ever see it, and sized against the real order book: 282.6299 shares at 367.39 comes to 103,835.39 USDT against a depth-derived cap of 103,835.42. It rounds **down**, never up, and tells you it did.
 
-**No news feed.** We could not find a working one. Rather than return an empty list, which would read as "there is no news", the code says plainly that no news source is wired.
+**News points, it never decides.** Event tripwires ("Nvidia announces aggressive price cuts") are watched through Google News search: every fifteen minutes, headlines from the last seven days that name the company AND one of the tripwire's keywords are attached to it, newest first, at most three. A headline never fires a tripwire and never changes a belief's health. A keyword match only MAY report the event (a search for Nvidia pricing also returns AMD card discounts), and a quiet feed is not proof that nothing happened. So the tripwire stays "can't check", with links to read. Zero model calls, so the loop's count stays at zero.
 
 **Fixtures.** The `/lab` route is an internal component gallery and its numbers are fixed examples, not live output. Nothing in the product itself ever reads a fixture.
 
@@ -527,7 +528,7 @@ Bitget market data needs **no key at all**, because we only use public read-only
 Useful commands:
 
 ```bash
-npm test                          all 794 tests
+npm test                          all 826 tests
 npm run qwen:check -- 3 --compare prove the sponsor model answers
 npm run health                    check every data source
 npm run cron:check                confirm the 15 minute loop is running
@@ -540,7 +541,7 @@ npm run tg:check                  confirm Telegram is connected
 
 - **One of five Bitget Skills works.** Their upstreams are down, not ours. We probe live and report it.
 - **Bitget's US stock data service is not wired in yet.** `bitget-mcp-server` (agent.bitget.com/mcp) carries earnings calendars, analyst targets, consensus and news, and would close the next gap on this list. Its MCP layer answers, but every data query returned 503 when we tried on 7 October, and we will not ship a parser for responses we have never seen.
-- **No news source is connected**, so tripwires that would depend on events are honestly reported as uncovered.
+- **News is headline matching, not reading.** Event tripwires get headlines that may report the event, never a verdict. The articles themselves are not read.
 - **No market holiday calendar.** On Thanksgiving the overnight panel hides instead of appearing. We chose the direction that shows less rather than the one that could state something false.
 - **THESIS cannot trade.** By design, permanently.
 - **Two public examples** (TSLA and NVDA) stay visible to every visitor and changeable by none, so a first visit lands on weeks of real history instead of an empty desk.
@@ -551,7 +552,7 @@ npm run tg:check                  confirm Telegram is connected
 
 **Next, in order:**
 
-1. **News and earnings from Bitget's own data service.** Event tripwires ("Nvidia announces aggressive pricing") get a feed instead of "watch for it yourself", and quarterly tripwires show the date they can next move: "next chance to move: earnings on 28 October, in 21 days".
+1. **Earnings dates and news from Bitget's own data service**, once it answers. Quarterly tripwires show the date they can next move ("next chance to move: earnings on 28 October, in 21 days"), and Bitget's news replaces the Google News search.
 2. **Analyst consensus as a tripwire source.** "The market has not already priced this in" is the belief THESIS most often reports as uncheckable. Consensus estimates turn it into a number.
 3. **A shareable card per thesis**, so a link posted anywhere shows the verdict, not just the name.
 4. **A market holiday calendar.**
