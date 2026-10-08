@@ -236,6 +236,30 @@ export function TripwireRow({
         <p className={cn('mt-2.5 max-w-prose text-sm text-trust', indent)}>{evaluation.reason}</p>
       ) : null}
 
+      {/* Headlines that may report the event. Links to read, never a verdict:
+          the status above stays "cannot tell" whatever is listed here. */}
+      {evaluation?.news && evaluation.news.hits.length > 0 ? (
+        <ul className={cn('mt-2.5 flex max-w-prose flex-col gap-1.5', indent)}>
+          {evaluation.news.hits.map((hit) => (
+            <li key={hit.url} className="text-sm leading-snug">
+              <a
+                href={hit.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-text underline decoration-line-strong underline-offset-2 hover:decoration-text"
+              >
+                {hit.title}
+              </a>
+              <span className="text-faint">
+                {' '}
+                · {hit.source ?? 'news'} ·{' '}
+                {new Date(hit.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {/* 4. the exact test and where the number came from */}
       <div className={cn('mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1.5', indent)}>
         {inline ? null : (

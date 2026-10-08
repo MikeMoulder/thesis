@@ -1,4 +1,5 @@
 import type { DataSource } from '../../data/DataSource';
+import { NEWS_WINDOW_DAYS, watchNews, type NewsWatch } from '../../data/providers/news';
 import { NoDataError, type Candle, type Instrument, type Provenance } from '../../data/types';
 import {
   computePriceMetric,
@@ -58,6 +59,12 @@ export interface Evaluation {
   provenance?: Provenance;
   /** Why a breaker could not be evaluated. Always set when undeterminable. */
   reason?: string;
+  /**
+   * Event tripwires only: headlines that MAY report the event. Never a
+   * verdict, so the status stays undeterminable whatever is in here. Kept on
+   * the newest check only; the store strips it from older ones.
+   */
+  news?: NewsWatch;
 }
 
 export function compare(value: number, operator: Operator, threshold: number): boolean {
@@ -144,14 +151,34 @@ export async function evaluateLive(
   breaker: ThesisBreaker,
 ): Promise<Evaluation> {
   if (breaker.kind === 'event') {
-    // Honest gap rather than a false "holding". A news provider is not wired,
-    // so we genuinely do not know whether this occurred.
-    return {
-      breakerId: breaker.id,
-      mode: 'live',
-      status: 'undeterminable',
-      reason: `No news feed is connected, so nothing here can see this happen. Watch for it yourself: ${breaker.watchFor}`,
-    };
+    /*
+      Still undeterminable, with or without headlines. A headline that
+      matches the keywords MAY report the event; it does not establish it,
+      and a quiet feed does not establish that it did not happen. What the
+      news changes is what the reader is handed: links to read, instead of
+      "watch for this yourself".
+    */
+    try {
+      const news = await watchNews(instrument, breaker.keywords);
+      const n = news.hits.length;
+      return {
+        breakerId: breaker.id,
+        mode: 'live',
+        status: 'undeterminable',
+        news,
+        reason:
+          n > 0
+            ? `${n} headline${n === 1 ? '' : 's'} from the last ${NEWS_WINDOW_DAYS} days may report this. A headline is not proof, so this stays yours to judge: read ${n === 1 ? 'it' : 'them'} before deciding. Watching for: ${breaker.watchFor}`
+            : `Watching the news for this. Nothing in the last ${NEWS_WINDOW_DAYS} days names the company alongside these words. A quiet feed is not proof it has not happened. Watching for: ${breaker.watchFor}`,
+      };
+    } catch {
+      return {
+        breakerId: breaker.id,
+        mode: 'live',
+        status: 'undeterminable',
+        reason: `The news feed could not be reached just now, so nothing here can see this happen. Watch for it yourself: ${breaker.watchFor}`,
+      };
+    }
   }
 
   try {

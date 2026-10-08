@@ -24,10 +24,25 @@ export type StoreKind = 'redis' | 'memory';
 const KEY_PREFIX = 'thesis:v1:';
 const INDEX_KEY = 'thesis:v1:index';
 
-/** Trim the log on write. See CHECK_LOG_LIMIT for why this is not optional. */
+/**
+ * Trim the log on write. See CHECK_LOG_LIMIT for why this is not optional.
+ *
+ * Headlines are kept on the newest check only. They are a pointer to read
+ * now, not part of the record, and a few hundred bytes of links on each of
+ * 500 checks would push a thesis toward the size a single Redis value can
+ * hold.
+ */
 function trim(thesis: ThesisRecord): ThesisRecord {
-  if (thesis.checks.length <= CHECK_LOG_LIMIT) return thesis;
-  return { ...thesis, checks: trimChecks(thesis.checks) };
+  const last = thesis.checks.length - 1;
+  const checks = thesis.checks.map((check, i) =>
+    i === last || !check.evaluations.some((e) => e.news)
+      ? check
+      : { ...check, evaluations: check.evaluations.map(({ news: _news, ...rest }) => rest) },
+  );
+  return {
+    ...thesis,
+    checks: checks.length <= CHECK_LOG_LIMIT ? checks : trimChecks(checks),
+  };
 }
 
 // ---------------------------------------------------------------------------

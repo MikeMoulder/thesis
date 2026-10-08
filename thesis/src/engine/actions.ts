@@ -157,8 +157,13 @@ export function deriveActions(
             : 'One tripwire could not be read. Treat it as unknown, not as fine.',
         detail:
           `${sentence(humaniseMetrics(blind[0]?.reason ?? 'No data source is wired for this one.'))} ` +
-          'An unread tripwire is not a quiet one. You simply do not know either way, ' +
-          'and you would have to check this by hand.',
+          // With headlines attached, the reader has something to check it
+          // against; telling them to "check this by hand" under a list of
+          // links would contradict the screen.
+          (blind[0]?.news?.hits.length
+            ? 'The headlines are listed under it. Until you have read them, treat it as unknown.'
+            : 'An unread tripwire is not a quiet one. You simply do not know either way, ' +
+              'and you would have to check this by hand.'),
         refs: blind.map((b) => b.breakerId),
       });
     }

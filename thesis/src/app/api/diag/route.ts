@@ -1,4 +1,5 @@
 import { getDataSource } from '@/data/index';
+import { watchNews } from '@/data/providers/news';
 import { probe as probeSignalSkills } from '@/data/providers/signal';
 
 /**
@@ -57,6 +58,23 @@ export async function GET(request: Request) {
   const quick = new URL(request.url).searchParams.get('quick') === '1';
   const skillsPending = quick ? Promise.resolve(null) : probeSignalSkills().catch(() => null);
 
+  /*
+    The headline feed for event tripwires. Reported beside `ok`, not inside
+    it, for the same reason as the Skills: a news outage leaves every number
+    on the page correct and only takes away links to read.
+  */
+  const newsPending = quick
+    ? Promise.resolve(null)
+    : (async () => {
+        const started = Date.now();
+        try {
+          const watch = await watchNews({ ticker: 'NVDA', name: 'NVIDIA CORP' }, ['earnings', 'guidance', 'outlook']);
+          return { ok: true, latencyMs: Date.now() - started, scanned: watch.scanned, relevant: watch.hits.length };
+        } catch (error) {
+          return { ok: false, latencyMs: Date.now() - started, detail: error instanceof Error ? error.message : String(error) };
+        }
+      })();
+
   // 1 and 2 are independent, so they run together rather than in turn.
   //   1. Per-provider health, as the engine itself reports it.
   //   2. Instrument resolution — Bitget instrument list + SEC ticker map.
@@ -96,6 +114,7 @@ export async function GET(request: Request) {
   //    failing ones take 17 to 32 seconds to return nothing. Started at the
   //    top, alongside everything else, and skipped in quick mode.
   const skills = await skillsPending;
+  const news = await newsPending;
 
   const allOk = probes.every((p) => p.ok);
 
@@ -121,6 +140,7 @@ export async function GET(request: Request) {
               tools: skills,
             }
           : { transport: 'mcp', answering: 0, total: 0, tools: [], detail: 'MCP handshake failed' },
+      news: quick ? { source: 'Google News RSS', skipped: 'quick check' } : { source: 'Google News RSS', ...news },
       checkedAt: new Date().toISOString(),
     },
     {
