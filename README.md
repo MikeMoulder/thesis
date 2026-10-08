@@ -2,7 +2,7 @@
 
 **Write down why you are buying something. THESIS takes that sentence apart, finds every belief hiding inside it, puts an exact number under each one, and then watches those numbers around the clock so you learn you were wrong from the data instead of from the price.**
 
-[Open the live desk](https://thesis-stocks.vercel.app) · [A thesis under observation](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-stocks.vercel.app/activity) · [Source health, live](https://thesis-stocks.vercel.app/api/diag) · [One research task, end to end](docs/walkthrough.md)
+[Open the live desk](https://thesis-stocks.vercel.app) · [A thesis under observation](https://thesis-stocks.vercel.app/thesis/tsla-c5qqql) · [Every check it has ever run](https://thesis-stocks.vercel.app/activity) · [Source health, live](https://thesis-stocks.vercel.app/api/diag)
 
 ![An AMD thesis attacked on the desk. The verdict comes first: 2 of the 5 things the trade rests on have already broken. Under it, each belief with its own status, live reading and source, worst first.](docs/images/analysis.png)
 
