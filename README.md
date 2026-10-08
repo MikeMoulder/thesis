@@ -8,7 +8,7 @@
 
 Built for the **Bitget AI Base Camp Hackathon S2**, on the **Bitget Agent Hub SDK**, **Qwen** through Bitget's hackathon gateway, and the **bitget-signal Skills**.
 
-Track 3, AI Trading Desk. Sub-theme: Decision Stress Testing.
+Track 3, AI Trading Desk. Sub-theme: Personalized Research Workbench.
 
 ---
 
