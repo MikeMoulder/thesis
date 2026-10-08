@@ -53,22 +53,24 @@ desktop.ini
 scratch/
 
 # ---------------------------------------------------------------------------
-# Markdown: the READMEs are the only prose that ships
+# Markdown: the READMEs and the walkthrough are the only prose that ships
 #
 # Everything else in this repo's Markdown is working material: the handoff log,
-# the submission answers, the walkthrough, the idea documents and the agent
+# the submission answers, the idea documents and the agent
 # instructions. They are how the project was built, not what it is, and a reader
 # arriving from GitHub should meet the product rather than the scaffolding.
 #
-# Ignore every .md, then re-admit the READMEs. The negations have to come AFTER
+# Ignore every .md, then re-admit the READMEs and the walkthrough. The negations have to come AFTER
 # the blanket rule.
 # ---------------------------------------------------------------------------
 *.md
 !README.md
 !thesis/README.md
 
-# The images the README embeds. docs/ itself is re-admitted so they can be.
+# The images the README embeds, and the research walkthrough the submission
+# links to as its required deliverable. docs/ itself is re-admitted so they can be.
 !docs/
+!docs/walkthrough.md
 !docs/**/*.png
 !docs/**/*.jpg
 !docs/**/*.svg
